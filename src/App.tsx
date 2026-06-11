@@ -56,23 +56,23 @@ export default function App() {
     <div className="min-h-dvh bg-canvas text-fg">
       {/* отступы под чёлку (safe-area-top) и нижнее меню + home-индикатор */}
       <div
-        className="max-w-md mx-auto px-4"
+        className="max-w-md mx-auto px-5"
         style={{
-          paddingTop: "calc(env(safe-area-inset-top, 0px) + 1.25rem)",
+          paddingTop: "calc(env(safe-area-inset-top, 0px) + 1.5rem)",
           paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 7rem)",
         }}
       >
-        <header className="flex items-end justify-between mb-4">
+        <header className="flex items-end justify-between mb-8">
           <div>
-            <div className="disp text-3xl font-bold leading-none uppercase">Путь к 95</div>
-            <div className="text-muted text-sm mt-1">{fmtDate(date)}</div>
+            <div className="eyebrow">{fmtDate(date)}</div>
+            <div className="disp text-2xl font-semibold leading-tight mt-1">Путь к 95</div>
           </div>
           <input
             type="date"
             value={date}
             max={todayStr()}
             onChange={(e) => setDate(e.target.value)}
-            className="bg-surface border border-line rounded-lg px-2 py-1.5 text-sm text-fg"
+            className="bg-transparent border-b border-line px-1 py-1 text-sm text-muted"
             aria-label="Выбрать дату"
           />
         </header>
@@ -95,21 +95,27 @@ export default function App() {
       </div>
 
       <nav
-        className="fixed bottom-0 left-0 right-0 bg-surface border-t border-line"
-        style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+        className="fixed bottom-0 left-0 right-0 border-t border-line"
+        style={{
+          paddingBottom: "env(safe-area-inset-bottom)",
+          background: "rgba(10,10,10,0.85)",
+          backdropFilter: "blur(16px)",
+          WebkitBackdropFilter: "blur(16px)",
+        }}
       >
         <div className="max-w-md mx-auto grid grid-cols-4">
           {TABS.map(([id, label, Icon]) => (
             <button
               key={id}
               onClick={() => setTab(id)}
-              className={`flex flex-col items-center gap-1 py-2.5 cursor-pointer transition-colors duration-150 ${
-                tab === id ? "text-orange-500" : "text-muted hover:text-fg"
+              className={`flex flex-col items-center gap-1 py-3 cursor-pointer transition-colors duration-150 ${
+                tab === id ? "text-accent" : "text-dim hover:text-muted"
               }`}
               aria-label={label}
+              aria-current={tab === id ? "page" : undefined}
             >
-              <Icon className="w-5 h-5" />
-              <span className="text-xs font-medium">{label}</span>
+              <Icon className="w-5 h-5" strokeWidth={tab === id ? 2.2 : 1.6} />
+              <span className="text-[11px] font-medium">{label}</span>
             </button>
           ))}
         </div>

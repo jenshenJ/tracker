@@ -3,8 +3,8 @@ import { Dumbbell, Footprints, Plus, Trash2 } from "lucide-react";
 import type { DayLog, Profile, Totals, Weights } from "../../types";
 import { ACT_TYPES, CARB_TARGET, FAT_TARGET, SCHED_LABEL } from "../../constants";
 import { dayOfWeek } from "../../lib/date";
-import { nextId } from "../../lib/id";
 import { goalLineAt, lastKnownWeight } from "../../lib/stats";
+import { nextId } from "../../lib/id";
 import { Bar } from "../Bar";
 
 interface Props {
@@ -44,57 +44,60 @@ export function TodayTab({ profile, totals, day, saveDay, weights, saveWeights, 
     if (v > 40 && v < 250) saveWeights({ ...weights, [date]: v });
   };
 
+  const macros: Array<[string, number, number]> = [
+    ["Белки", totals.p, profile.proteinTarget],
+    ["Жиры", totals.f, FAT_TARGET],
+    ["Углеводы", totals.c, CARB_TARGET],
+  ];
+
   return (
-    <div className="space-y-4">
-      {/* калории */}
-      <section className="bg-surface rounded-2xl p-4 border border-line">
-        <div className="flex items-baseline justify-between mb-1">
-          <span className="text-muted text-sm font-medium">Калории</span>
-          <span className="disp text-2xl font-bold">
-            <span className="glow-primary">{Math.round(totals.kcal)}</span>{" "}
-            <span className="text-muted text-base font-medium">/ {profile.kcalTarget}</span>
-          </span>
+    <div className="space-y-10">
+      {/* hero: калории */}
+      <section>
+        <div className="eyebrow">Калории</div>
+        <div className="disp text-6xl font-semibold leading-none mt-3">
+          {Math.round(totals.kcal)}
+          <span className="text-dim text-2xl font-medium"> / {profile.kcalTarget}</span>
         </div>
-        <Bar value={totals.kcal} max={profile.kcalTarget} color="bg-orange-500" />
-        <div className={`text-sm mt-2 font-medium ${left < 0 ? "text-red-400" : "text-body"}`}>
-          {left >= 0 ? `Осталось ${left} ккал` : `Перебор ${-left} ккал`}
+        <div className={`text-sm mt-2 font-medium ${left < 0 ? "text-danger" : "text-accent"}`}>
+          {left >= 0 ? `осталось ${left} ккал` : `перебор ${-left} ккал`}
         </div>
-        <div className="grid grid-cols-3 gap-2 mt-3 text-center">
-          {(
-            [
-              ["Белки", totals.p, profile.proteinTarget],
-              ["Жиры", totals.f, FAT_TARGET],
-              ["Углеводы", totals.c, CARB_TARGET],
-            ] as Array<[string, number, number]>
-          ).map(([n, v, m]) => (
-            <div key={n} className="bg-canvas rounded-xl py-2">
-              <div className="text-xs text-muted">{n}</div>
-              <div className="disp text-lg font-semibold">
-                {Math.round(v)}
-                <span className="text-dim text-sm"> / {m}г</span>
+        <div className="mt-5">
+          <Bar value={totals.kcal} max={profile.kcalTarget} />
+        </div>
+
+        <ul className="mt-6">
+          {macros.map(([n, v, m]) => (
+            <li key={n} className="border-b border-line py-3 first:border-t">
+              <div className="flex justify-between items-baseline">
+                <span className="text-sm text-muted">{n}</span>
+                <span className="disp text-base font-medium">
+                  {Math.round(v)}
+                  <span className="text-dim"> / {m} г</span>
+                </span>
               </div>
-            </div>
+            </li>
           ))}
-        </div>
-        <Bar value={totals.p} max={profile.proteinTarget} color="bg-green-500" />
-        <div className="text-xs text-muted mt-1">
+        </ul>
+        <p className="text-xs text-dim mt-3">
           Белок — вторая цель дня: {Math.max(0, Math.round(profile.proteinTarget - totals.p))} г осталось
-        </div>
+        </p>
+
         <button
           onClick={goToFood}
-          className="mt-3 w-full bg-orange-500 hover:bg-orange-400 active:scale-[0.98] transition-all duration-150 text-gray-900 font-semibold rounded-xl py-3 flex items-center justify-center gap-2 cursor-pointer"
+          className="mt-6 w-full bg-accent hover:bg-accent-soft active:scale-[0.98] transition-all duration-150 text-accent-ink font-semibold rounded-full py-3.5 flex items-center justify-center gap-2 cursor-pointer"
         >
           <Plus className="w-5 h-5" /> Добавить еду
         </button>
       </section>
 
       {/* вес */}
-      <section className="bg-surface rounded-2xl p-4 border border-line">
-        <div className="flex items-center justify-between mb-2">
-          <span className="text-muted text-sm font-medium">Вес утром</span>
-          <span className="text-xs text-dim">план на сегодня ≈ {goalToday.toFixed(1)} кг</span>
+      <section>
+        <div className="flex items-baseline justify-between">
+          <div className="eyebrow">Вес утром</div>
+          <span className="text-xs text-dim">план ≈ {goalToday.toFixed(1)} кг</span>
         </div>
-        <div className="flex gap-2">
+        <div className="mt-4 flex items-end gap-2 border-b border-line focus-within:border-accent transition-colors">
           <input
             type="number"
             inputMode="decimal"
@@ -102,44 +105,40 @@ export function TodayTab({ profile, totals, day, saveDay, weights, saveWeights, 
             placeholder={lastW ? String(lastW) : "114.0"}
             value={w}
             onChange={(e) => setWEdit({ date, value: e.target.value })}
-            className="flex-1 bg-canvas border border-line rounded-xl px-3 py-3 text-lg disp font-semibold"
+            className="flex-1 min-w-0 bg-transparent px-1 py-2 disp text-3xl font-medium outline-none"
             aria-label="Вес в килограммах"
           />
-          <button
-            onClick={saveWeight}
-            className="bg-green-500 hover:bg-green-400 active:scale-[0.98] transition-all duration-150 text-gray-900 font-semibold rounded-xl px-5 cursor-pointer"
-          >
-            ОК
-          </button>
+          <span className="text-dim text-sm pb-2.5">кг</span>
         </div>
+        <button
+          onClick={saveWeight}
+          className="mt-4 w-full bg-raised hover:bg-raised-hover active:scale-[0.98] transition-all duration-150 text-fg font-medium rounded-full py-3 text-sm cursor-pointer"
+        >
+          Записать вес
+        </button>
         {weights[date] && (
-          <div className="text-sm mt-2 text-body">
-            Записано: <b>{weights[date]} кг</b>{" "}
+          <p className="text-sm mt-3 text-body">
+            {weights[date]} кг{" "}
             {weights[date] <= goalToday ? (
-              <span className="text-green-400">— идёте с опережением</span>
+              <span className="text-accent">— идёте с опережением</span>
             ) : (
-              <span className="text-orange-400">— чуть выше плана, без паники: смотрим на среднее за неделю</span>
+              <span className="text-muted">— чуть выше плана, смотрим на среднее за неделю</span>
             )}
-          </div>
+          </p>
         )}
       </section>
 
       {/* активность */}
-      <section className="bg-surface rounded-2xl p-4 border border-line">
-        <div className="flex items-center gap-2 mb-3">
-          <Dumbbell className="w-4 h-4 text-orange-500" />
-          <span className="text-muted text-sm font-medium">Активность</span>
-          {plannedWorkout && (
-            <span className="ml-auto text-xs bg-orange-500/15 text-orange-400 border border-orange-500/30 rounded-full px-2.5 py-1 font-medium">
-              По плану: {SCHED_LABEL[plannedWorkout]}
-            </span>
-          )}
+      <section>
+        <div className="flex items-baseline justify-between">
+          <div className="eyebrow">Активность</div>
+          {plannedWorkout && <span className="text-xs text-accent">по плану: {SCHED_LABEL[plannedWorkout]}</span>}
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 mt-4">
           <select
             value={actType}
             onChange={(e) => setActType(e.target.value)}
-            className="bg-canvas border border-line rounded-xl px-3 py-3 text-sm flex-1"
+            className="bg-surface rounded-full px-4 py-2.5 text-sm flex-1 min-w-0"
             aria-label="Тип активности"
           >
             {ACT_TYPES.map((a) => (
@@ -154,32 +153,32 @@ export function TodayTab({ profile, totals, day, saveDay, weights, saveWeights, 
             placeholder="мин"
             value={actMin}
             onChange={(e) => setActMin(e.target.value)}
-            className="w-24 bg-canvas border border-line rounded-xl px-3 py-3 text-sm"
+            className="w-20 shrink-0 bg-surface rounded-full px-4 py-2.5 text-sm"
             aria-label="Минуты"
           />
           <button
             onClick={addAct}
-            className="bg-raised hover:bg-raised-hover transition-colors duration-150 rounded-xl px-4 cursor-pointer"
+            className="bg-raised hover:bg-raised-hover transition-colors duration-150 rounded-full w-11 h-11 flex items-center justify-center cursor-pointer"
             aria-label="Добавить активность"
           >
             <Plus className="w-5 h-5" />
           </button>
         </div>
         {day.acts.length > 0 && (
-          <ul className="mt-3 space-y-2">
+          <ul className="mt-4">
             {day.acts.map((a) => (
-              <li key={a.id} className="flex items-center justify-between bg-canvas rounded-xl px-3 py-2 text-sm">
-                <span className="flex items-center gap-2">
+              <li key={a.id} className="flex items-center justify-between border-b border-line py-2.5 text-sm first:border-t">
+                <span className="flex items-center gap-2.5">
                   {a.type === "Ходьба" ? (
-                    <Footprints className="w-4 h-4 text-green-500" />
+                    <Footprints className="w-4 h-4 text-accent" strokeWidth={1.6} />
                   ) : (
-                    <Dumbbell className="w-4 h-4 text-green-500" />
+                    <Dumbbell className="w-4 h-4 text-accent" strokeWidth={1.6} />
                   )}
                   {a.type} · {a.min} мин
                 </span>
                 <button
                   onClick={() => saveDay({ ...day, acts: day.acts.filter((x) => x.id !== a.id) })}
-                  className="text-dim hover:text-red-400 cursor-pointer p-2"
+                  className="text-dim hover:text-danger cursor-pointer p-2"
                   aria-label="Удалить"
                 >
                   <Trash2 className="w-4 h-4" />
@@ -188,7 +187,7 @@ export function TodayTab({ profile, totals, day, saveDay, weights, saveWeights, 
             ))}
           </ul>
         )}
-        <p className="text-xs text-dim mt-2">
+        <p className="text-xs text-dim mt-3">
           Дефицит уже заложен в {profile.kcalTarget} ккал — еду за тренировки не «отрабатываем» и не доедаем.
         </p>
       </section>

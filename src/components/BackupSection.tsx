@@ -24,6 +24,7 @@ export function BackupSection({ profile }: Props) {
         weights: storage.loadWeights(),
         pantry: storage.loadPantry(),
         days: storage.allDays(),
+        customFoods: storage.loadCustomFoods(),
       };
       const blob = new Blob([JSON.stringify(out, null, 2)], { type: "application/json" });
       const a = document.createElement("a");
@@ -50,6 +51,7 @@ export function BackupSection({ profile }: Props) {
       if (data.profile) storage.saveProfile(data.profile);
       if (data.weights) storage.saveWeights(data.weights);
       if (typeof data.pantry === "string") storage.savePantry(data.pantry);
+      if (Array.isArray(data.customFoods)) storage.saveCustomFoods(data.customFoods);
       for (const [k, v] of Object.entries(data.days ?? {})) storage.saveDayRaw(k, v);
       setMsg("Данные восстановлены. Перезагружаю…");
       setTimeout(() => window.location.reload(), 800);
@@ -61,26 +63,26 @@ export function BackupSection({ profile }: Props) {
   };
 
   return (
-    <section className="bg-surface rounded-2xl p-4 border border-line">
-      <span className="text-muted text-sm font-medium">Резервная копия</span>
-      <p className="text-xs text-dim mt-1">
+    <section>
+      <div className="eyebrow">Резервная копия</div>
+      <p className="text-xs text-dim mt-2">
         Все данные — цели, вес, дневник еды и активности — одним JSON-файлом. Восстановление перезапишет текущие данные данными
         из файла.
       </p>
-      <div className="grid grid-cols-2 gap-2 mt-3">
+      <div className="grid grid-cols-2 gap-3 mt-4">
         <button
           onClick={exportAll}
           disabled={busy}
-          className="bg-raised hover:bg-raised-hover disabled:opacity-50 transition-colors duration-150 rounded-xl py-2.5 text-sm font-medium cursor-pointer flex items-center justify-center gap-1.5"
+          className="bg-raised hover:bg-raised-hover disabled:opacity-50 transition-colors duration-150 rounded-full py-3 text-sm font-medium cursor-pointer flex items-center justify-center gap-2"
         >
-          {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />} Выгрузить
+          {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" strokeWidth={1.6} />} Выгрузить
         </button>
         <button
           onClick={() => fileRef.current?.click()}
           disabled={busy}
-          className="bg-raised hover:bg-raised-hover disabled:opacity-50 transition-colors duration-150 rounded-xl py-2.5 text-sm font-medium cursor-pointer flex items-center justify-center gap-1.5"
+          className="bg-raised hover:bg-raised-hover disabled:opacity-50 transition-colors duration-150 rounded-full py-3 text-sm font-medium cursor-pointer flex items-center justify-center gap-2"
         >
-          <Upload className="w-4 h-4" /> Восстановить
+          <Upload className="w-4 h-4" strokeWidth={1.6} /> Восстановить
         </button>
         <input
           ref={fileRef}
@@ -94,7 +96,7 @@ export function BackupSection({ profile }: Props) {
           aria-label="Файл бэкапа"
         />
       </div>
-      {msg && <p className="text-xs text-muted mt-2">{msg}</p>}
+      {msg && <p className="text-xs text-muted mt-3">{msg}</p>}
     </section>
   );
 }

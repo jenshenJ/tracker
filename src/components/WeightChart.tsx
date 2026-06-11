@@ -5,7 +5,7 @@ interface Props {
   entries: Array<[string, number]>;
 }
 
-/** SVG-график: фактический вес против плановой линии до цели. */
+/** SVG-график: фактический вес (акцент) против плановой линии (пунктир). */
 export function WeightChart({ profile, entries }: Props) {
   const W = 340,
     H = 170,
@@ -20,10 +20,10 @@ export function WeightChart({ profile, entries }: Props) {
   const gridY = [95, 100, 105, 110, 115].filter((v) => v >= yMin && v <= yMax);
 
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} className="w-full mt-3" role="img" aria-label="График веса относительно плановой линии">
+    <svg viewBox={`0 0 ${W} ${H}`} className="w-full mt-4" role="img" aria-label="График веса относительно плановой линии">
       {gridY.map((v) => (
         <g key={v}>
-          <line x1={P.l} x2={W - P.r} y1={y(v)} y2={y(v)} stroke="var(--color-line)" strokeWidth="1" strokeDasharray="3 4" />
+          <line x1={P.l} x2={W - P.r} y1={y(v)} y2={y(v)} stroke="var(--color-line)" strokeWidth="1" />
           <text x={2} y={y(v) + 4} fill="var(--color-dim)" fontSize="10">
             {v}
           </text>
@@ -35,21 +35,27 @@ export function WeightChart({ profile, entries }: Props) {
         y1={y(profile.startWeight)}
         x2={x(profile.goalDate)}
         y2={y(profile.goalWeight)}
-        stroke="#22C55E"
-        strokeWidth="2"
-        strokeDasharray="6 5"
-        opacity="0.8"
+        stroke="var(--color-dim)"
+        strokeWidth="1.5"
+        strokeDasharray="2 5"
       />
-      <circle cx={x(profile.goalDate)} cy={y(profile.goalWeight)} r="4" fill="#22C55E" />
-      <text x={x(profile.goalDate) - 6} y={y(profile.goalWeight) - 8} fill="#22C55E" fontSize="10" textAnchor="end">
+      <circle cx={x(profile.goalDate)} cy={y(profile.goalWeight)} r="3.5" fill="var(--color-dim)" />
+      <text x={x(profile.goalDate) - 6} y={y(profile.goalWeight) - 8} fill="var(--color-muted)" fontSize="10" textAnchor="end">
         {profile.goalWeight} кг
       </text>
       {/* фактические данные */}
       {entries.length > 1 && (
-        <polyline points={pts} fill="none" stroke="#F97316" strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" />
+        <polyline
+          points={pts}
+          fill="none"
+          stroke="var(--color-accent)"
+          strokeWidth="2"
+          strokeLinejoin="round"
+          strokeLinecap="round"
+        />
       )}
       {entries.slice(-1).map(([d, v]) => (
-        <circle key={d} cx={x(d)} cy={y(v)} r="4.5" fill="#F97316" stroke="var(--color-surface)" strokeWidth="2" />
+        <circle key={d} cx={x(d)} cy={y(v)} r="4" fill="var(--color-accent)" stroke="var(--color-canvas)" strokeWidth="2" />
       ))}
       {entries.length === 0 && (
         <text x={W / 2} y={H / 2} fill="var(--color-dim)" fontSize="12" textAnchor="middle">

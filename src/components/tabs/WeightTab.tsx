@@ -1,4 +1,4 @@
-import { CalendarDays, Target, Trash2, TrendingDown } from "lucide-react";
+import { Trash2, TrendingDown } from "lucide-react";
 import type { Profile, Weights } from "../../types";
 import { MILESTONES } from "../../constants";
 import { daysBetween, dstr, fmtDate, todayStr } from "../../lib/date";
@@ -30,59 +30,51 @@ export function WeightTab({ profile, weights, saveWeights }: Props) {
   if (pace !== null) {
     if (pace < needPace - 0.2) {
       advice = `Темп ${pace.toFixed(1)} кг/нед — медленнее нужного (${needPace.toFixed(1)}). Минус 150–200 ккал от нормы или +2000 шагов в день.`;
-      adviceColor = "text-orange-400";
+      adviceColor = "text-muted";
     } else if (pace > 1.3) {
       advice = `Темп ${pace.toFixed(1)} кг/нед — слишком быстро. Добавьте ~150 ккал, чтобы не терять мышцы и силы на футболе.`;
-      adviceColor = "text-orange-400";
+      adviceColor = "text-muted";
     } else {
       advice = `Темп ${pace.toFixed(1)} кг/нед — в коридоре. Нужно ${needPace.toFixed(1)} кг/нед до цели. Так держать.`;
-      adviceColor = "text-green-400";
+      adviceColor = "text-accent";
     }
   }
 
   const milestones: Array<[string, string]> = [...MILESTONES, [profile.goalDate, `${profile.goalWeight} кг — финиш`]];
 
   return (
-    <div className="space-y-4">
-      <section className="bg-surface rounded-2xl p-4 border border-line">
-        <div className="grid grid-cols-3 text-center gap-2">
+    <div className="space-y-10">
+      <section>
+        <div className="eyebrow">Вес</div>
+        <div className="flex items-end justify-between mt-3">
           <div>
-            <div className="text-xs text-muted">Сейчас</div>
-            <div className="disp text-2xl font-bold">{last.toFixed(1)}</div>
+            <div className="disp text-6xl font-semibold leading-none">{last.toFixed(1)}</div>
+            <div className="text-xs text-dim mt-1.5">сейчас, кг</div>
           </div>
-          <div>
-            <div className="text-xs text-muted">Сброшено</div>
-            <div className="disp text-2xl font-bold text-green-400">−{Math.max(lost, 0).toFixed(1)}</div>
-          </div>
-          <div>
-            <div className="text-xs text-muted">До цели</div>
-            <div className="disp text-2xl font-bold text-orange-400">{Math.max(toGo, 0).toFixed(1)}</div>
+          <div className="text-right">
+            <div className="disp text-xl font-medium text-accent">−{Math.max(lost, 0).toFixed(1)}</div>
+            <div className="text-xs text-dim">сброшено</div>
+            <div className="disp text-xl font-medium mt-2">{Math.max(toGo, 0).toFixed(1)}</div>
+            <div className="text-xs text-dim">до цели</div>
           </div>
         </div>
         <WeightChart profile={profile} entries={entries} />
-        <div className={`text-sm mt-2 flex gap-2 items-start ${adviceColor}`}>
-          <TrendingDown className="w-4 h-4 mt-0.5 shrink-0" /> <span>{advice}</span>
+        <div className={`text-sm mt-3 flex gap-2 items-start ${adviceColor}`}>
+          <TrendingDown className="w-4 h-4 mt-0.5 shrink-0" strokeWidth={1.6} /> <span>{advice}</span>
         </div>
       </section>
 
-      <section className="bg-surface rounded-2xl p-4 border border-line">
-        <div className="flex items-center gap-2 mb-3">
-          <Target className="w-4 h-4 text-orange-500" />
-          <span className="text-muted text-sm font-medium">Контрольные точки</span>
-        </div>
-        <ul className="space-y-2">
+      <section>
+        <div className="eyebrow">Контрольные точки</div>
+        <ul className="mt-4">
           {milestones.map(([d, label]) => {
             const passed = todayStr() >= d;
             const avg = weeklyAvg(weights, d);
             const hit = passed && avg !== null && avg <= goalLineAt(profile, d) + 0.5;
             return (
-              <li key={d} className="flex items-center justify-between bg-canvas rounded-xl px-3 py-2.5">
-                <span className="text-sm flex items-center gap-2">
-                  <CalendarDays className="w-4 h-4 text-dim" /> {fmtDate(d)}
-                </span>
-                <span className={`disp font-semibold ${passed ? (hit ? "text-green-400" : "text-orange-400") : "text-body"}`}>
-                  {label}
-                </span>
+              <li key={d} className="flex items-center justify-between border-b border-line py-3 first:border-t">
+                <span className="text-sm text-muted">{fmtDate(d)}</span>
+                <span className={`disp font-medium ${passed ? (hit ? "text-accent" : "text-danger") : "text-fg"}`}>{label}</span>
               </li>
             );
           })}
@@ -93,24 +85,24 @@ export function WeightTab({ profile, weights, saveWeights }: Props) {
       </section>
 
       {entries.length > 0 && (
-        <section className="bg-surface rounded-2xl p-4 border border-line">
-          <span className="text-muted text-sm font-medium">Последние записи</span>
-          <ul className="mt-2 space-y-1.5">
+        <section>
+          <div className="eyebrow">Последние записи</div>
+          <ul className="mt-4">
             {entries
               .slice(-10)
               .reverse()
               .map(([d, v]) => (
-                <li key={d} className="flex justify-between items-center bg-canvas rounded-xl px-3 py-2 text-sm">
+                <li key={d} className="flex justify-between items-center border-b border-line py-2 text-sm first:border-t">
                   <span className="text-muted">{fmtDate(d)}</span>
-                  <span className="flex items-center gap-2">
-                    <b className="disp text-base">{v} кг</b>
+                  <span className="flex items-center gap-1">
+                    <b className="disp text-base font-medium">{v} кг</b>
                     <button
                       onClick={() => {
                         const n = { ...weights };
                         delete n[d];
                         saveWeights(n);
                       }}
-                      className="text-dim hover:text-red-400 cursor-pointer p-2"
+                      className="text-dim hover:text-danger cursor-pointer p-2"
                       aria-label="Удалить запись веса"
                     >
                       <Trash2 className="w-4 h-4" />

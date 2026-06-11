@@ -1,19 +1,17 @@
 interface BarProps {
   value: number;
   max: number;
-  color: string;
+  /** tailwind-класс цвета заливки, напр. "bg-accent" */
+  color?: string;
 }
 
-/** Горизонтальный прогресс-бар; краснеет при переборе. */
-export function Bar({ value, max, color }: BarProps) {
+/** Тонкая editorial-линия прогресса; краснеет при переборе. */
+export function Bar({ value, max, color = "bg-accent" }: BarProps) {
   const pct = Math.min(100, (value / max) * 100);
   const over = value > max;
   return (
-    <div className="h-2.5 rounded-full bg-raised overflow-hidden">
-      <div
-        className={`h-full rounded-full transition-all duration-300 ${over ? "bg-red-500" : color}`}
-        style={{ width: pct + "%" }}
-      />
+    <div className="h-0.5 bg-line overflow-hidden">
+      <div className={`h-full transition-all duration-300 ${over ? "bg-danger" : color}`} style={{ width: pct + "%" }} />
     </div>
   );
 }

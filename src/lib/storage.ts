@@ -1,4 +1,4 @@
-import type { DayLog, Profile, Weights } from "../types";
+import type { CustomFood, DayLog, Profile, Weights } from "../types";
 import { DEFAULT_PROFILE } from "../constants";
 
 const PREFIX = "t95:";
@@ -37,6 +37,9 @@ export const storage = {
 
   loadPantry: (): string => read<string>("pantry", ""),
   savePantry: (p: string) => write("pantry", p),
+
+  loadCustomFoods: (): CustomFood[] => read<CustomFood[]>("customFoods", []),
+  saveCustomFoods: (foods: CustomFood[]) => write("customFoods", foods),
 
   /** Все сохранённые дни дневника: { "day:YYYY-MM-DD": DayLog }. */
   allDays(): Record<string, DayLog> {

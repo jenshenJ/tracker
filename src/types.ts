@@ -70,6 +70,16 @@ export interface MealIdea {
   c: number;
 }
 
+/** Своё блюдо пользователя (КБЖУ на 100 г), хранится в базе устройства. */
+export interface CustomFood {
+  id: number;
+  name: string;
+  kcal: number;
+  p: number;
+  f: number;
+  c: number;
+}
+
 /** Формат файла резервной копии. */
 export interface BackupFile {
   app: "tracker95";
@@ -78,4 +88,5 @@ export interface BackupFile {
   weights: Weights;
   pantry: string;
   days: Record<string, DayLog>;
+  customFoods?: CustomFood[];
 }

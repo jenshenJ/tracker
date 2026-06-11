@@ -1,12 +1,14 @@
 import { useMemo, useState } from "react";
 import { Loader2, Search, Sparkles, Trash2, X } from "lucide-react";
-import type { DayLog, FoodEntry, FoodSearchResult, Meal, Profile, Totals } from "../../types";
+import type { CustomFood, DayLog, FoodEntry, FoodSearchResult, Meal, Profile, Totals } from "../../types";
 import { MEALS, defaultMeal } from "../../constants";
 import { FOOD_DB } from "../../constants/foodDb";
 import { AiError, askAi, parseJsonArray } from "../../lib/ai";
 import { foodSearchPrompt } from "../../lib/prompts";
 import { nextId } from "../../lib/id";
+import { storage } from "../../lib/storage";
 import { AiChef } from "../AiChef";
+import { CustomFoodForm } from "../CustomFoodForm";
 
 interface Props {
   day: DayLog;
@@ -31,12 +33,38 @@ export function FoodTab({ day, saveDay, totals, profile }: Props) {
   const [picked, setPicked] = useState<Picked | null>(null);
   const [grams, setGrams] = useState("");
   const [meal, setMeal] = useState<Meal>(defaultMeal());
+  const [customFoods, setCustomFoods] = useState<CustomFood[]>(() => storage.loadCustomFoods());
 
+  const saveCustomFood = (food: CustomFood) => {
+    const next = [food, ...customFoods];
+    setCustomFoods(next);
+    storage.saveCustomFoods(next);
+    pick(food.name, food.kcal, food.p, food.f, food.c, 100);
+  };
+
+  const deleteCustomFood = (id: number) => {
+    const next = customFoods.filter((x) => x.id !== id);
+    setCustomFoods(next);
+    storage.saveCustomFoods(next);
+  };
+
+  /* поиск: сначала свои блюда, затем встроенная база */
   const local = useMemo(() => {
     const s = q.trim().toLowerCase();
     if (s.length < 2) return [];
-    return FOOD_DB.filter((f) => f[0].toLowerCase().includes(s)).slice(0, 6);
-  }, [q]);
+    const own = customFoods
+      .filter((x) => x.name.toLowerCase().includes(s))
+      .map((x) => ({ id: x.id as number | null, name: x.name, kcal: x.kcal, p: x.p, f: x.f, c: x.c }));
+    const builtin = FOOD_DB.filter((x) => x[0].toLowerCase().includes(s)).map(([name, kcal, p, f, c]) => ({
+      id: null as number | null,
+      name,
+      kcal,
+      p,
+      f,
+      c,
+    }));
+    return [...own, ...builtin].slice(0, 7);
+  }, [q, customFoods]);
 
   const aiSearch = async () => {
     if (q.trim().length < 2) return;
@@ -98,15 +126,15 @@ export function FoodTab({ day, saveDay, totals, profile }: Props) {
   const g = parseFloat(grams) || 0;
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-10">
       {/* поиск */}
-      <section className="bg-surface rounded-2xl p-4 border border-line">
-        <label htmlFor="fq" className="text-muted text-sm font-medium">
+      <section>
+        <label htmlFor="fq" className="eyebrow">
           Что съели?
         </label>
-        <div className="flex gap-2 mt-2">
+        <div className="flex gap-2 mt-4">
           <div className="relative flex-1">
-            <Search className="w-4 h-4 text-dim absolute left-3 top-1/2 -translate-y-1/2" />
+            <Search className="w-4 h-4 text-dim absolute left-4 top-1/2 -translate-y-1/2" />
             <input
               id="fq"
               value={q}
@@ -116,13 +144,13 @@ export function FoodTab({ day, saveDay, totals, profile }: Props) {
                 setAiError("");
               }}
               placeholder="гречка, шаурма, борщ…"
-              className="w-full bg-canvas border border-line rounded-xl pl-9 pr-3 py-3 text-base"
+              className="w-full bg-surface rounded-full pl-11 pr-4 py-3 text-base"
             />
           </div>
           <button
             onClick={aiSearch}
             disabled={aiLoading}
-            className="bg-orange-500 hover:bg-orange-400 disabled:opacity-50 transition-all duration-150 text-gray-900 rounded-xl px-4 cursor-pointer flex items-center gap-1.5 font-semibold"
+            className="bg-accent hover:bg-accent-soft disabled:opacity-50 transition-all duration-150 text-accent-ink rounded-full px-5 cursor-pointer flex items-center gap-1.5 font-semibold"
             aria-label="Поиск через AI"
           >
             {aiLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Sparkles className="w-5 h-5" />}
@@ -131,42 +159,58 @@ export function FoodTab({ day, saveDay, totals, profile }: Props) {
         </div>
 
         {local.length > 0 && !picked && (
-          <ul className="mt-3 divide-y divide-line border border-line rounded-xl overflow-hidden">
-            {local.map(([n, k, p, f, c]) => (
-              <li key={n}>
+          <ul className="mt-4">
+            {local.map((item) => (
+              <li key={item.id ?? item.name} className="border-b border-line first:border-t flex items-center gap-1">
                 <button
-                  onClick={() => pick(n, k, p, f, c, n.includes("Протеин") ? 30 : 100)}
-                  className="w-full text-left px-3 py-2.5 hover:bg-raised transition-colors duration-150 cursor-pointer flex justify-between items-center"
+                  onClick={() => pick(item.name, item.kcal, item.p, item.f, item.c, item.name.includes("Протеин") ? 30 : 100)}
+                  className="flex-1 min-w-0 text-left py-3 cursor-pointer flex justify-between items-baseline gap-3 hover:text-accent transition-colors duration-150"
                 >
-                  <span className="text-sm">{n}</span>
-                  <span className="text-xs text-muted shrink-0 ml-2">
-                    {k} ккал · Б{p}
+                  <span className="text-sm truncate">
+                    {item.name}
+                    {item.id !== null && <span className="text-accent text-xs ml-2">своё</span>}
+                  </span>
+                  <span className="text-xs text-dim shrink-0 disp">
+                    {Math.round(item.kcal)} ккал · Б{item.p}
                   </span>
                 </button>
+                {item.id !== null && (
+                  <button
+                    onClick={() => deleteCustomFood(item.id!)}
+                    className="text-dim hover:text-danger cursor-pointer p-2 shrink-0"
+                    aria-label={`Удалить «${item.name}» из базы`}
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                )}
               </li>
             ))}
           </ul>
         )}
 
         {q.length >= 2 && local.length === 0 && !aiResults && !aiLoading && !picked && (
-          <p className="text-xs text-dim mt-2">
-            Нет в базе — нажмите <b className="text-orange-400">AI</b>, и калорийность определится автоматически.
+          <p className="text-xs text-dim mt-3">
+            Нет в базе — нажмите <b className="text-accent">AI</b>, и калорийность определится автоматически.
           </p>
         )}
 
-        {aiError && <p role="alert" className="text-sm text-red-400 mt-2">{aiError}</p>}
+        {aiError && (
+          <p role="alert" className="text-sm text-danger mt-3">
+            {aiError}
+          </p>
+        )}
 
         {aiResults && (
-          <ul className="mt-3 divide-y divide-line border border-orange-500/40 rounded-xl overflow-hidden">
+          <ul className="mt-4">
             {aiResults.map((r, i) => (
-              <li key={i}>
+              <li key={i} className="border-b border-line first:border-t">
                 <button
                   onClick={() => pick(r.name, r.kcal, r.p, r.f, r.c, r.portion)}
-                  className="w-full text-left px-3 py-2.5 hover:bg-raised transition-colors duration-150 cursor-pointer"
+                  className="w-full text-left py-3 cursor-pointer hover:text-accent transition-colors duration-150"
                 >
-                  <div className="flex justify-between items-center">
+                  <div className="flex justify-between items-baseline gap-3">
                     <span className="text-sm">{r.name}</span>
-                    <span className="text-xs text-muted shrink-0 ml-2">{Math.round(r.kcal)} ккал/100г</span>
+                    <span className="text-xs text-dim shrink-0 disp">{Math.round(r.kcal)} ккал/100г</span>
                   </div>
                   <div className="text-xs text-dim mt-0.5">
                     Б {r.p} · Ж {r.f} · У {r.c} · порция ~{r.portion} г
@@ -178,31 +222,31 @@ export function FoodTab({ day, saveDay, totals, profile }: Props) {
         )}
 
         {picked && (
-          <div className="mt-3 bg-canvas border border-green-500/40 rounded-xl p-3">
+          <div className="mt-5 border-t border-accent/40 pt-4">
             <div className="flex justify-between items-start">
               <div className="text-sm font-medium pr-2">{picked.name}</div>
               <button
                 onClick={() => setPicked(null)}
-                className="text-dim hover:text-body cursor-pointer p-2"
+                className="text-dim hover:text-fg cursor-pointer p-2 -mt-1.5"
                 aria-label="Отмена"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
-            <div className="flex gap-2 mt-2">
+            <div className="flex gap-3 mt-3 items-end">
               <input
                 type="number"
                 inputMode="decimal"
                 value={grams}
                 onChange={(e) => setGrams(e.target.value)}
-                className="w-24 bg-surface border border-line rounded-xl px-3 py-2.5 disp text-lg font-semibold"
+                className="w-24 shrink-0 bg-transparent border-b border-line focus:border-accent transition-colors px-1 py-1.5 disp text-2xl font-medium outline-none"
                 aria-label="Граммы"
               />
-              <span className="self-center text-muted text-sm">г</span>
+              <span className="text-dim text-sm pb-2">г</span>
               <select
                 value={meal}
                 onChange={(e) => setMeal(e.target.value as Meal)}
-                className="flex-1 bg-surface border border-line rounded-xl px-3 py-2.5 text-sm"
+                className="flex-1 min-w-0 bg-surface rounded-full px-4 py-2.5 text-sm"
                 aria-label="Приём пищи"
               >
                 {MEALS.map((m) => (
@@ -211,14 +255,14 @@ export function FoodTab({ day, saveDay, totals, profile }: Props) {
               </select>
             </div>
             {g > 0 && (
-              <div className="text-xs text-muted mt-2">
+              <div className="text-xs text-dim mt-3 disp">
                 = {Math.round((picked.kcal * g) / 100)} ккал · Б {Math.round((picked.p * g) / 100)} · Ж{" "}
                 {Math.round((picked.f * g) / 100)} · У {Math.round((picked.c * g) / 100)}
               </div>
             )}
             <button
               onClick={add}
-              className="mt-3 w-full bg-green-500 hover:bg-green-400 active:scale-[0.98] transition-all duration-150 text-gray-900 font-semibold rounded-xl py-2.5 cursor-pointer"
+              className="mt-4 w-full bg-accent hover:bg-accent-soft active:scale-[0.98] transition-all duration-150 text-accent-ink font-semibold rounded-full py-3 cursor-pointer"
             >
               Записать
             </button>
@@ -226,37 +270,40 @@ export function FoodTab({ day, saveDay, totals, profile }: Props) {
         )}
       </section>
 
+      {/* своё блюдо */}
+      <CustomFoodForm onSave={saveCustomFood} />
+
       {/* AI-повар */}
       <AiChef day={day} saveDay={saveDay} totals={totals} profile={profile} />
 
       {/* дневник */}
-      <section className="bg-surface rounded-2xl p-4 border border-line">
-        <div className="flex justify-between items-baseline mb-2">
-          <span className="text-muted text-sm font-medium">Дневник за день</span>
-          <span className="disp text-lg font-bold">
-            {Math.round(totals.kcal)} <span className="text-dim text-sm">/ {profile.kcalTarget} ккал</span>
+      <section>
+        <div className="flex justify-between items-baseline">
+          <span className="eyebrow">Дневник за день</span>
+          <span className="disp text-base font-medium">
+            {Math.round(totals.kcal)} <span className="text-dim text-sm">/ {profile.kcalTarget}</span>
           </span>
         </div>
         {day.foods.length === 0 && (
-          <p className="text-sm text-dim py-4 text-center">Пока пусто. Найдите продукт выше и нажмите «Записать».</p>
+          <p className="text-sm text-dim py-6 text-center">Пока пусто. Найдите продукт выше и нажмите «Записать».</p>
         )}
         {MEALS.filter((m) => byMeal.has(m)).map((m) => (
-          <div key={m} className="mt-3">
-            <div className="text-xs uppercase tracking-wide text-orange-400 font-semibold mb-1.5 disp">
+          <div key={m} className="mt-5">
+            <div className="text-xs text-accent font-medium mb-1 disp uppercase tracking-wider">
               {m} · {Math.round(byMeal.get(m)!.reduce((s, f) => s + f.kcal, 0))} ккал
             </div>
-            <ul className="space-y-1.5">
+            <ul>
               {byMeal.get(m)!.map((f) => (
-                <li key={f.id} className="flex items-center justify-between bg-canvas rounded-xl px-3 py-2">
+                <li key={f.id} className="flex items-center justify-between border-b border-line py-2.5 first:border-t">
                   <div className="min-w-0">
                     <div className="text-sm truncate">{f.name}</div>
-                    <div className="text-xs text-dim">
+                    <div className="text-xs text-dim disp">
                       {Math.round(f.grams)} г · {Math.round(f.kcal)} ккал · Б {Math.round(f.p)}
                     </div>
                   </div>
                   <button
                     onClick={() => saveDay({ ...day, foods: day.foods.filter((x) => x.id !== f.id) })}
-                    className="text-dim hover:text-red-400 cursor-pointer p-2 shrink-0"
+                    className="text-dim hover:text-danger cursor-pointer p-2 shrink-0"
                     aria-label="Удалить запись"
                   >
                     <Trash2 className="w-4 h-4" />

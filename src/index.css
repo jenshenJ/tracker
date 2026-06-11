@@ -1,47 +1,53 @@
-@import url("https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600;700&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap");
 @import "tailwindcss";
 
-/* ── Семантические токены (ui-ux-pro-max: Dark Mode OLED, energy orange + success green) ── */
+/* ── Editorial dark: один акцент, hairline-линии, ноль карточек ── */
 @theme {
-  --color-canvas: #0a0e17; /* фон страницы, OLED deep */
-  --color-surface: #141b29; /* карточки */
-  --color-raised: #232e43; /* кнопки/элементы на карточках */
-  --color-raised-hover: #2d3a53;
-  --color-line: #243049; /* границы и разделители */
-  --color-fg: #f8fafc; /* основной текст */
-  --color-body: #cbd5e1; /* вторичный текст */
-  --color-muted: #94a3b8; /* подписи */
-  --color-dim: #64748b; /* слабый текст */
+  --color-canvas: #0a0a0a; /* фон */
+  --color-surface: #121212; /* заливка инпутов */
+  --color-raised: #1a1a1a; /* вторичные кнопки */
+  --color-raised-hover: #242424;
+  --color-line: #1f1f1f; /* hairline-разделители */
+  --color-fg: #fafafa;
+  --color-body: #d4d4d4;
+  --color-muted: #9c9c9c;
+  --color-dim: #6b6b6b;
+  --color-accent: #d6f451; /* электрический лайм */
+  --color-accent-soft: #e3fa78;
+  --color-accent-ink: #0a0a0a; /* текст на акценте */
+  --color-danger: #ff5c5c;
 }
 
 html,
 body {
   background: var(--color-canvas);
   margin: 0;
-  /* без резинового оверскролла — фиксированное меню не «отлипает» от низа */
   overscroll-behavior-y: none;
 }
 
 body {
-  font-family: "Barlow", -apple-system, system-ui, sans-serif;
+  font-family: "Inter", -apple-system, system-ui, sans-serif;
   color: var(--color-fg);
 }
 
-/* Узкий display-шрифт для цифр и заголовков; tabular-nums — чтобы цифры не прыгали */
+/* Display-шрифт для крупных цифр и заголовков */
 .disp {
-  font-family: "Barlow Condensed", "Arial Narrow", -apple-system, sans-serif;
-  letter-spacing: 0.02em;
+  font-family: "Space Grotesk", "Inter", -apple-system, sans-serif;
+  letter-spacing: -0.02em;
   font-variant-numeric: tabular-nums;
 }
 
-/* Лёгкое свечение ключевых цифр (minimal glow) */
-.glow-primary {
-  text-shadow: 0 0 14px rgb(249 115 22 / 0.35);
+/* Подпись секции: маленькие капс-лейблы вместо карточек */
+.eyebrow {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--color-dim);
+  font-weight: 600;
 }
 
-/* Видимый focus для клавиатурной навигации */
 :focus-visible {
-  outline: 2px solid #f97316;
+  outline: 2px solid var(--color-accent);
   outline-offset: 2px;
   border-radius: 4px;
 }

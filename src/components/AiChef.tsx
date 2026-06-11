@@ -3,8 +3,8 @@ import { ChefHat, ChevronRight, Loader2, Plus, Sparkles } from "lucide-react";
 import type { DayLog, MealIdea, Profile, Totals } from "../types";
 import { SCHED_LABEL, defaultMeal } from "../constants";
 import { AiError, askAi, parseJsonArray } from "../lib/ai";
-import { nextId } from "../lib/id";
 import { chefPrompt } from "../lib/prompts";
+import { nextId } from "../lib/id";
 import { storage } from "../lib/storage";
 
 interface Props {
@@ -59,23 +59,22 @@ export function AiChef({ day, saveDay, totals, profile }: Props) {
   };
 
   return (
-    <section className="bg-surface rounded-2xl p-4 border border-line">
+    <section className="border-y border-line py-4">
       <button onClick={() => setOpen(!open)} className="w-full flex items-center justify-between cursor-pointer" aria-expanded={open}>
-        <span className="flex items-center gap-2 text-muted text-sm font-medium">
-          <ChefHat className="w-4 h-4 text-green-500" /> Что приготовить из того, что есть?
+        <span className="flex items-center gap-2.5 text-sm text-body font-medium">
+          <ChefHat className="w-4 h-4 text-accent" strokeWidth={1.6} /> Что приготовить из того, что есть?
         </span>
         <ChevronRight className={`w-4 h-4 text-dim transition-transform duration-200 ${open ? "rotate-90" : ""}`} />
       </button>
 
       {open && (
-        <div className="mt-3">
-          <div className="text-xs text-muted mb-2">
-            Остаток на сегодня: <b className="text-orange-400">{leftKcal} ккал</b> · белка добрать{" "}
-            <b className="text-green-400">{leftP} г</b>
+        <div className="mt-4">
+          <div className="text-xs text-muted mb-3">
+            Остаток: <b className="text-fg disp">{leftKcal} ккал</b> · белка добрать <b className="text-fg disp">{leftP} г</b>
             {todayWorkout && (
               <>
                 {" "}
-                · сегодня: <b className="text-fg">{SCHED_LABEL[todayWorkout]}</b>
+                · сегодня: <b className="text-accent">{SCHED_LABEL[todayWorkout]}</b>
               </>
             )}
           </div>
@@ -84,43 +83,47 @@ export function AiChef({ day, saveDay, totals, profile }: Props) {
             onChange={(e) => setPantry(e.target.value)}
             rows={3}
             placeholder="курица, гречка, яйца, творог, помидоры, сыр…"
-            className="w-full bg-canvas border border-line rounded-xl px-3 py-2.5 text-sm resize-none"
+            className="w-full bg-surface rounded-2xl px-4 py-3 text-sm resize-none"
             aria-label="Продукты в наличии"
           />
           <button
             onClick={suggest}
             disabled={loading || pantry.trim().length < 3}
-            className="mt-2 w-full bg-green-500 hover:bg-green-400 disabled:opacity-50 active:scale-[0.98] transition-all duration-150 text-gray-900 font-semibold rounded-xl py-2.5 flex items-center justify-center gap-2 cursor-pointer"
+            className="mt-3 w-full bg-accent hover:bg-accent-soft disabled:opacity-50 active:scale-[0.98] transition-all duration-150 text-accent-ink font-semibold rounded-full py-3 flex items-center justify-center gap-2 cursor-pointer"
           >
             {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Sparkles className="w-5 h-5" />}
             {loading ? "Думаю…" : "Предложить блюда"}
           </button>
-          {error && <p role="alert" className="text-sm text-red-400 mt-2">{error}</p>}
+          {error && (
+            <p role="alert" className="text-sm text-danger mt-3">
+              {error}
+            </p>
+          )}
 
           {ideas && (
-            <ul className="mt-3 space-y-3">
+            <ul className="mt-4 space-y-5">
               {ideas.map((idea, i) => (
-                <li key={i} className="bg-canvas border border-green-500/30 rounded-xl p-3">
+                <li key={i} className="border-t border-line pt-4">
                   <div className="flex justify-between items-baseline gap-2">
-                    <span className="disp font-semibold text-base">{idea.title}</span>
-                    <span className="text-xs text-muted shrink-0">
+                    <span className="disp font-medium text-base">{idea.title}</span>
+                    <span className="text-xs text-dim shrink-0 disp">
                       {Math.round(idea.kcal)} ккал · Б {Math.round(idea.p)}
                     </span>
                   </div>
-                  <p className="text-sm text-body mt-1">{idea.how}</p>
-                  <ul className="mt-2 text-xs text-muted space-y-0.5">
+                  <p className="text-sm text-body mt-1.5">{idea.how}</p>
+                  <ul className="mt-2 text-xs text-muted space-y-1">
                     {idea.items.map((it, j) => (
                       <li key={j}>
-                        • {it.name} — {Math.round(it.grams)} г ({Math.round(it.kcal)} ккал)
+                        {it.name} — {Math.round(it.grams)} г ({Math.round(it.kcal)} ккал)
                       </li>
                     ))}
                   </ul>
-                  <div className="text-xs text-dim mt-1.5">
+                  <div className="text-xs text-dim mt-2 disp">
                     Итого: Б {Math.round(idea.p)} · Ж {Math.round(idea.f)} · У {Math.round(idea.c)}
                   </div>
                   <button
                     onClick={() => logIdea(idea)}
-                    className="mt-2.5 w-full bg-raised hover:bg-raised-hover transition-colors duration-150 rounded-xl py-2 text-sm font-medium cursor-pointer flex items-center justify-center gap-1.5"
+                    className="mt-3 w-full bg-raised hover:bg-raised-hover transition-colors duration-150 rounded-full py-2.5 text-sm font-medium cursor-pointer flex items-center justify-center gap-1.5"
                   >
                     <Plus className="w-4 h-4" /> Записать в дневник
                   </button>
