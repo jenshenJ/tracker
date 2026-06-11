@@ -70,6 +70,47 @@ export interface MealIdea {
   c: number;
 }
 
+/* ── Зал ── */
+
+export type Intensity = "легкая" | "средняя" | "тяжелая";
+
+/** Слот программы: упражнение + интенсивность + подходы × рекомендуемые повторы. */
+export interface ProgramSlot {
+  exerciseId: string;
+  intensity: Intensity;
+  sets: number;
+  repsMin: number;
+  repsMax: number;
+}
+
+/** Программный день: 1 | 2 — неделя цикла, weekday — 1=пн … 5=пт. */
+export interface ProgramDay {
+  week: 1 | 2;
+  weekday: number;
+  slots: ProgramSlot[];
+}
+
+export interface WorkoutSetLog {
+  weight: number;
+  reps: number;
+}
+
+export interface WorkoutExerciseLog {
+  exerciseId: string;
+  skipped: boolean;
+  sets: WorkoutSetLog[];
+}
+
+/** Лог тренировки за дату. */
+export interface WorkoutLog {
+  date: string;
+  week: 1 | 2;
+  weekday: number;
+  startedAt: string;
+  finishedAt?: string;
+  entries: WorkoutExerciseLog[];
+}
+
 /** Своё блюдо пользователя (КБЖУ на 100 г), хранится в базе устройства. */
 export interface CustomFood {
   id: number;
@@ -89,4 +130,5 @@ export interface BackupFile {
   pantry: string;
   days: Record<string, DayLog>;
   customFoods?: CustomFood[];
+  workouts?: Record<string, WorkoutLog>;
 }

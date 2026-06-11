@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Dumbbell, Footprints, Plus, Trash2 } from "lucide-react";
+import { Dumbbell, Footprints, Play, Plus, Trash2 } from "lucide-react";
 import type { DayLog, Profile, Totals, Weights } from "../../types";
 import { ACT_TYPES, CARB_TARGET, FAT_TARGET, SCHED_LABEL } from "../../constants";
 import { dayOfWeek } from "../../lib/date";
@@ -16,9 +16,10 @@ interface Props {
   saveWeights: (w: Weights) => void;
   date: string;
   goToFood: () => void;
+  goToGym: () => void;
 }
 
-export function TodayTab({ profile, totals, day, saveDay, weights, saveWeights, date, goToFood }: Props) {
+export function TodayTab({ profile, totals, day, saveDay, weights, saveWeights, date, goToFood, goToGym }: Props) {
   /* значение поля выводится из weights[date]; ручной ввод хранится с привязкой к дате */
   const [wEdit, setWEdit] = useState<{ date: string; value: string } | null>(null);
   const w = wEdit?.date === date ? wEdit.value : String(weights[date] ?? "");
@@ -134,6 +135,14 @@ export function TodayTab({ profile, totals, day, saveDay, weights, saveWeights, 
           <div className="eyebrow">Активность</div>
           {plannedWorkout && <span className="text-xs text-accent">по плану: {SCHED_LABEL[plannedWorkout]}</span>}
         </div>
+        {plannedWorkout === "gym" && (
+          <button
+            onClick={goToGym}
+            className="mt-4 w-full bg-fg hover:bg-body active:scale-[0.98] transition-all duration-150 text-canvas font-semibold rounded-full py-3 flex items-center justify-center gap-2 cursor-pointer"
+          >
+            <Play className="w-4 h-4" /> Начать тренировку
+          </button>
+        )}
         <div className="flex gap-2 mt-4">
           <select
             value={actType}

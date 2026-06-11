@@ -11,6 +11,12 @@
     "lint:fix": "eslint . --fix",
     "typecheck": "tsc --noEmit"
   },
+  "pnpm": {
+    "supportedArchitectures": {
+      "os": ["darwin", "linux"],
+      "cpu": ["arm64", "x64"]
+    }
+  },
   "dependencies": {
     "lucide-react": "^0.460.0",
     "react": "^18.3.1",

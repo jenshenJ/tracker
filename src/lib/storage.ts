@@ -1,4 +1,4 @@
-import type { CustomFood, DayLog, Profile, Weights } from "../types";
+import type { CustomFood, DayLog, Profile, Weights, WorkoutLog } from "../types";
 import { DEFAULT_PROFILE } from "../constants";
 
 const PREFIX = "t95:";
@@ -40,6 +40,9 @@ export const storage = {
 
   loadCustomFoods: (): CustomFood[] => read<CustomFood[]>("customFoods", []),
   saveCustomFoods: (foods: CustomFood[]) => write("customFoods", foods),
+
+  loadWorkouts: (): Record<string, WorkoutLog> => read<Record<string, WorkoutLog>>("workouts", {}),
+  saveWorkouts: (w: Record<string, WorkoutLog>) => write("workouts", w),
 
   /** Все сохранённые дни дневника: { "day:YYYY-MM-DD": DayLog }. */
   allDays(): Record<string, DayLog> {

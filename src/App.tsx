@@ -1,18 +1,20 @@
 import { useMemo, useState } from "react";
-import { Flame, Drumstick, Scale, ClipboardList } from "lucide-react";
+import { Flame, Drumstick, Dumbbell, Scale, ClipboardList } from "lucide-react";
 import type { DayLog, Profile, Totals, Weights } from "./types";
 import { storage } from "./lib/storage";
 import { todayStr, fmtDate } from "./lib/date";
 import { TodayTab } from "./components/tabs/TodayTab";
 import { FoodTab } from "./components/tabs/FoodTab";
+import { GymTab } from "./components/tabs/GymTab";
 import { WeightTab } from "./components/tabs/WeightTab";
 import { PlanTab } from "./components/tabs/PlanTab";
 
-type Tab = "today" | "food" | "weight" | "plan";
+type Tab = "today" | "food" | "gym" | "weight" | "plan";
 
 const TABS: Array<[Tab, string, typeof Flame]> = [
   ["today", "Сегодня", Flame],
   ["food", "Еда", Drumstick],
+  ["gym", "Зал", Dumbbell],
   ["weight", "Вес", Scale],
   ["plan", "План", ClipboardList],
 ];
@@ -87,9 +89,11 @@ export default function App() {
             saveWeights={saveWeights}
             date={date}
             goToFood={() => setTab("food")}
+            goToGym={() => setTab("gym")}
           />
         )}
         {tab === "food" && <FoodTab day={day} saveDay={saveDay} totals={totals} profile={profile} />}
+        {tab === "gym" && <GymTab date={date} day={day} saveDay={saveDay} />}
         {tab === "weight" && <WeightTab profile={profile} weights={weights} saveWeights={saveWeights} />}
         {tab === "plan" && <PlanTab profile={profile} saveProfile={saveProfile} />}
       </div>
@@ -103,7 +107,7 @@ export default function App() {
           WebkitBackdropFilter: "blur(16px)",
         }}
       >
-        <div className="max-w-md mx-auto grid grid-cols-4">
+        <div className="max-w-md mx-auto grid grid-cols-5">
           {TABS.map(([id, label, Icon]) => (
             <button
               key={id}
