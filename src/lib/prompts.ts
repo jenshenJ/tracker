@@ -1,0 +1,46 @@
+import type { DayLog, Profile, Totals } from "../types";
+import { CARB_TARGET, FAT_TARGET, MEALS, SCHED_LABEL } from "../constants";
+
+/** Промпт AI-поиска продукта по свободному запросу. */
+export function foodSearchPrompt(query: string): string {
+  return (
+    `Ты база данных продуктов питания. Запрос пользователя (на русском): "${query}".\n` +
+    `Верни ТОЛЬКО валидный JSON-массив (без markdown, без пояснений) из 1-4 наиболее вероятных вариантов:\n` +
+    `[{"name":"название по-русски","kcal":число ккал на 100 г,"p":белки г/100г,"f":жиры г/100г,"c":углеводы г/100г,"portion":типичная порция в граммах}]\n` +
+    `Если это готовое блюдо (шаурма, борщ, пицца) — оцени средние значения. Числа реалистичные.`
+  );
+}
+
+/** Промпт AI-повара под остаток КБЖУ и график тренировок. */
+export function chefPrompt(profile: Profile, day: DayLog, totals: Totals, pantry: string): string {
+  const leftKcal = Math.max(0, Math.round(profile.kcalTarget - totals.kcal));
+  const leftP = Math.max(0, Math.round(profile.proteinTarget - totals.p));
+  const leftF = Math.max(0, Math.round(FAT_TARGET - totals.f));
+  const leftC = Math.max(0, Math.round(CARB_TARGET - totals.c));
+  const mealsLeft = Math.max(1, MEALS.length - new Set(day.foods.map((f) => f.meal)).size);
+
+  const planned = profile.schedule[new Date().getDay()] ?? null;
+  const done = day.acts.map((a) => a.type).join(", ");
+  let trainCtx = "Сегодня день отдыха — упор на белок и овощи, углеводы умеренно.";
+  if (planned === "foot" && !done.includes(SCHED_LABEL.foot))
+    trainCtx =
+      "Сегодня вечером ФУТБОЛ, игра ещё впереди — в ближайший приём добавь сложных углеводов (~50-80 г сверху: рис, гречка, картофель, хлеб), чтобы были силы на игру.";
+  else if (planned === "foot") trainCtx = "Сегодня уже был футбол — сейчас восстановление: упор на белок, углеводы умеренные.";
+  else if (planned === "gym" && !done.includes(SCHED_LABEL.gym))
+    trainCtx = "Сегодня СИЛОВАЯ тренировка, ещё впереди — нужны углеводы до неё и белок после.";
+  else if (planned === "gym") trainCtx = "Силовая уже была — приоритет белку для восстановления мышц.";
+  if (done) trainCtx += ` Уже записанная активность: ${done}.`;
+
+  return (
+    `Ты нутрициолог-повар. Человек худеет (${profile.startWeight}→${profile.goalWeight} кг), тренируется, считает КБЖУ.\n` +
+    `Остаток на сегодня: ${leftKcal} ккал, белка минимум ${leftP} г, жиров до ${leftF} г, углеводов до ${leftC} г. ` +
+    `Впереди примерно ${mealsLeft} приём(а) пищи.\n` +
+    `Контекст тренировок: ${trainCtx}\n` +
+    `Продукты в наличии: ${pantry}.\n` +
+    `Предложи 2-3 варианта ОДНОГО приёма пищи из этих продуктов (можно соль/специи/вода), распределяя углеводы согласно контексту тренировок. ` +
+    `Если остаток на день большой, целься в ${Math.min(leftKcal, Math.round(leftKcal / mealsLeft) + 100)}–${Math.min(leftKcal, Math.round(leftKcal / mealsLeft) + 250)} ккал за приём с упором на белок. ` +
+    `Граммы реалистичные, КБЖУ считай честно по граммовкам.\n` +
+    `Верни ТОЛЬКО валидный JSON-массив без markdown:\n` +
+    `[{"title":"название блюда","how":"как приготовить, 1-2 предложения","items":[{"name":"продукт","grams":число,"kcal":ккал за эти граммы,"p":г,"f":г,"c":г}],"kcal":итого,"p":итого,"f":итого,"c":итого}]`
+  );
+}
