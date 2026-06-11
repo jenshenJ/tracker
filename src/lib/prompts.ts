@@ -1,5 +1,11 @@
-import type { DayLog, Profile, Totals } from "../types";
-import { CARB_TARGET, FAT_TARGET, MEALS, SCHED_LABEL } from "../constants";
+import type { DayLog, GoalMode, Profile, Totals } from "../types";
+import { MEALS, SCHED_LABEL } from "../constants";
+
+const GOAL_PHRASE: Record<GoalMode, string> = {
+  cut: "худеет",
+  recomp: "делает рекомпозицию (держит вес, меняет жир на мышцы)",
+  bulk: "набирает мышечную массу",
+};
 
 /** Промпт AI-поиска продукта по свободному запросу. */
 export function foodSearchPrompt(query: string): string {
@@ -15,8 +21,8 @@ export function foodSearchPrompt(query: string): string {
 export function chefPrompt(profile: Profile, day: DayLog, totals: Totals, pantry: string): string {
   const leftKcal = Math.max(0, Math.round(profile.kcalTarget - totals.kcal));
   const leftP = Math.max(0, Math.round(profile.proteinTarget - totals.p));
-  const leftF = Math.max(0, Math.round(FAT_TARGET - totals.f));
-  const leftC = Math.max(0, Math.round(CARB_TARGET - totals.c));
+  const leftF = Math.max(0, Math.round(profile.fatTarget - totals.f));
+  const leftC = Math.max(0, Math.round(profile.carbTarget - totals.c));
   const mealsLeft = Math.max(1, MEALS.length - new Set(day.foods.map((f) => f.meal)).size);
 
   const planned = profile.schedule[new Date().getDay()] ?? null;
@@ -32,7 +38,7 @@ export function chefPrompt(profile: Profile, day: DayLog, totals: Totals, pantry
   if (done) trainCtx += ` Уже записанная активность: ${done}.`;
 
   return (
-    `Ты нутрициолог-повар. Человек худеет (${profile.startWeight}→${profile.goalWeight} кг), тренируется, считает КБЖУ.\n` +
+    `Ты нутрициолог-повар. Человек ${GOAL_PHRASE[profile.goal]} (${profile.startWeight}→${profile.goalWeight} кг), тренируется, считает КБЖУ.\n` +
     `Остаток на сегодня: ${leftKcal} ккал, белка минимум ${leftP} г, жиров до ${leftF} г, углеводов до ${leftC} г. ` +
     `Впереди примерно ${mealsLeft} приём(а) пищи.\n` +
     `Контекст тренировок: ${trainCtx}\n` +

@@ -1,8 +1,7 @@
-import { Trash2, TrendingDown } from "lucide-react";
+import { Trash2, TrendingDown, TrendingUp, MoveRight } from "lucide-react";
 import type { Profile, Weights } from "../../types";
-import { MILESTONES } from "../../constants";
 import { daysBetween, dstr, fmtDate, todayStr } from "../../lib/date";
-import { goalLineAt, weeklyAvg } from "../../lib/stats";
+import { goalLineAt, lastKnownWeight, milestones, weeklyAvg } from "../../lib/stats";
 import { WeightChart } from "../WeightChart";
 
 interface Props {
@@ -13,34 +12,67 @@ interface Props {
 
 export function WeightTab({ profile, weights, saveWeights }: Props) {
   const entries = Object.entries(weights).sort((a, b) => a[0].localeCompare(b[0]));
-  const last = entries.length ? entries[entries.length - 1][1] : profile.startWeight;
-  const lost = profile.startWeight - last;
-  const toGo = last - profile.goalWeight;
+  const last = lastKnownWeight(weights) ?? profile.startWeight;
+  const delta = last - profile.startWeight; // + набрано, − сброшено
+  const toGo = Math.abs(last - profile.goalWeight);
   const daysLeft = Math.max(daysBetween(todayStr(), profile.goalDate), 0);
 
   const avgNow = weeklyAvg(weights, todayStr());
   const prev = new Date();
   prev.setDate(prev.getDate() - 7);
   const avgPrev = weeklyAvg(weights, dstr(prev));
-  const pace = avgNow && avgPrev ? avgPrev - avgNow : null;
-  const needPace = daysLeft > 0 ? (toGo / daysLeft) * 7 : 0;
+  /** Δ за неделю: + набирает, − сбрасывает. */
+  const weeklyDelta = avgNow && avgPrev ? avgNow - avgPrev : null;
+  /** Нужный темп (кг/нед, со знаком) до цели. */
+  const needPace = daysLeft > 0 ? ((profile.goalWeight - last) / daysLeft) * 7 : 0;
 
   let advice = "Записывайте вес каждое утро — через неделю появится темп и рекомендации.";
   let adviceColor = "text-muted";
-  if (pace !== null) {
-    if (pace < needPace - 0.2) {
-      advice = `Темп ${pace.toFixed(1)} кг/нед — медленнее нужного (${needPace.toFixed(1)}). Минус 150–200 ккал от нормы или +2000 шагов в день.`;
-      adviceColor = "text-muted";
-    } else if (pace > 1.3) {
-      advice = `Темп ${pace.toFixed(1)} кг/нед — слишком быстро. Добавьте ~150 ккал, чтобы не терять мышцы и силы на футболе.`;
-      adviceColor = "text-muted";
+  if (weeklyDelta !== null) {
+    if (profile.goal === "cut") {
+      const lose = -weeklyDelta;
+      const need = -needPace;
+      if (lose < need - 0.2)
+        advice = `Темп −${lose.toFixed(1)} кг/нед — медленнее нужного (−${need.toFixed(1)}). Минус 150–200 ккал от нормы или +2000 шагов в день.`;
+      else if (lose > 1.3)
+        advice = `Темп −${lose.toFixed(1)} кг/нед — слишком быстро. Добавьте ~150 ккал, чтобы не терять мышцы.`;
+      else {
+        advice = `Темп −${lose.toFixed(1)} кг/нед — в коридоре. Нужно −${need.toFixed(1)} кг/нед до цели. Так держать.`;
+        adviceColor = "text-accent";
+      }
+    } else if (profile.goal === "bulk") {
+      const gain = weeklyDelta;
+      const need = needPace;
+      if (gain < need - 0.1)
+        advice = `Темп +${Math.max(0, gain).toFixed(1)} кг/нед — медленнее нужного (+${need.toFixed(1)}). Добавьте 150–200 ккал.`;
+      else if (gain > 0.5)
+        advice = `Темп +${gain.toFixed(1)} кг/нед — слишком быстро, лишнее уйдёт в жир. Уберите 100–150 ккал.`;
+      else {
+        advice = `Темп +${gain.toFixed(1)} кг/нед — в коридоре чистого набора. Так держать.`;
+        adviceColor = "text-accent";
+      }
     } else {
-      advice = `Темп ${pace.toFixed(1)} кг/нед — в коридоре. Нужно ${needPace.toFixed(1)} кг/нед до цели. Так держать.`;
-      adviceColor = "text-accent";
+      if (Math.abs(weeklyDelta) <= 0.3) {
+        advice = `Вес стабилен (${weeklyDelta >= 0 ? "+" : ""}${weeklyDelta.toFixed(1)} кг/нед) — рекомпозиция идёт. Прогресс смотрим по весам в зале и замерам.`;
+        adviceColor = "text-accent";
+      } else
+        advice = `Вес плывёт на ${weeklyDelta > 0 ? "+" : ""}${weeklyDelta.toFixed(1)} кг/нед. Для рекомпозиции держим ±0.3: скорректируйте 100–150 ккал.`;
     }
   }
 
-  const milestones: Array<[string, string]> = [...MILESTONES, [profile.goalDate, `${profile.goalWeight} кг — финиш`]];
+  const TrendIcon = profile.goal === "bulk" ? TrendingUp : profile.goal === "recomp" ? MoveRight : TrendingDown;
+  const deltaLabel = profile.goal === "bulk" ? "набрано" : profile.goal === "recomp" ? "изменение" : "сброшено";
+  const deltaShown =
+    profile.goal === "bulk" ? Math.max(delta, 0) : profile.goal === "recomp" ? delta : Math.max(-delta, 0);
+  const deltaSign = profile.goal === "recomp" ? (delta > 0 ? "+" : delta < 0 ? "−" : "±") : profile.goal === "bulk" ? "+" : "−";
+
+  const hitMilestone = (d: string) => {
+    const avg = weeklyAvg(weights, d);
+    if (avg === null) return false;
+    const line = goalLineAt(profile, d);
+    if (profile.goal === "recomp") return Math.abs(avg - line) <= 0.7;
+    return profile.goal === "bulk" ? avg >= line - 0.5 : avg <= line + 0.5;
+  };
 
   return (
     <div className="space-y-10">
@@ -52,25 +84,27 @@ export function WeightTab({ profile, weights, saveWeights }: Props) {
             <div className="text-xs text-dim mt-1.5">сейчас, кг</div>
           </div>
           <div className="text-right">
-            <div className="disp text-xl font-medium text-accent">−{Math.max(lost, 0).toFixed(1)}</div>
-            <div className="text-xs text-dim">сброшено</div>
-            <div className="disp text-xl font-medium mt-2">{Math.max(toGo, 0).toFixed(1)}</div>
+            <div className="disp text-xl font-medium text-accent">
+              {deltaSign}
+              {Math.abs(deltaShown).toFixed(1)}
+            </div>
+            <div className="text-xs text-dim">{deltaLabel}</div>
+            <div className="disp text-xl font-medium mt-2">{toGo.toFixed(1)}</div>
             <div className="text-xs text-dim">до цели</div>
           </div>
         </div>
         <WeightChart profile={profile} entries={entries} />
         <div className={`text-sm mt-3 flex gap-2 items-start ${adviceColor}`}>
-          <TrendingDown className="w-4 h-4 mt-0.5 shrink-0" strokeWidth={1.6} /> <span>{advice}</span>
+          <TrendIcon className="w-4 h-4 mt-0.5 shrink-0" strokeWidth={1.6} /> <span>{advice}</span>
         </div>
       </section>
 
       <section>
         <div className="eyebrow">Контрольные точки</div>
         <ul className="mt-4">
-          {milestones.map(([d, label]) => {
+          {milestones(profile).map(([d, label]) => {
             const passed = todayStr() >= d;
-            const avg = weeklyAvg(weights, d);
-            const hit = passed && avg !== null && avg <= goalLineAt(profile, d) + 0.5;
+            const hit = passed && hitMilestone(d);
             return (
               <li key={d} className="flex items-center justify-between border-b border-line py-3 first:border-t">
                 <span className="text-sm text-muted">{fmtDate(d)}</span>
@@ -80,7 +114,7 @@ export function WeightTab({ profile, weights, saveWeights }: Props) {
           })}
         </ul>
         <p className="text-xs text-dim mt-3">
-          Осталось {daysLeft} дн. Если будете на 96–97 кг к финишу — это тоже победа, просто финиш сместится на пару недель.
+          Осталось {daysLeft} дн. Небольшое отставание от плана — не провал, просто финиш сместится на пару недель.
         </p>
       </section>
 

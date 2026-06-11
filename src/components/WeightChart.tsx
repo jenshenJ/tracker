@@ -12,12 +12,13 @@ export function WeightChart({ profile, entries }: Props) {
     P = { l: 30, r: 8, t: 10, b: 20 };
   const t0 = new Date(profile.startDate + "T12:00:00").getTime();
   const t1 = new Date(profile.goalDate + "T12:00:00").getTime();
-  const yMin = profile.goalWeight - 2,
-    yMax = profile.startWeight + 2;
+  const yMin = Math.min(profile.goalWeight, profile.startWeight) - 2,
+    yMax = Math.max(profile.goalWeight, profile.startWeight) + 2;
   const x = (s: string) => P.l + ((new Date(s + "T12:00:00").getTime() - t0) / (t1 - t0)) * (W - P.l - P.r);
   const y = (v: number) => P.t + (1 - (v - yMin) / (yMax - yMin)) * (H - P.t - P.b);
   const pts = entries.map(([d, v]) => `${x(d).toFixed(1)},${y(v).toFixed(1)}`).join(" ");
-  const gridY = [95, 100, 105, 110, 115].filter((v) => v >= yMin && v <= yMax);
+  const gridY: number[] = [];
+  for (let v = Math.ceil(yMin / 5) * 5; v <= yMax; v += 5) gridY.push(v);
 
   return (
     <svg viewBox={`0 0 ${W} ${H}`} className="w-full mt-4" role="img" aria-label="График веса относительно плановой линии">

@@ -95,7 +95,7 @@ export default function App() {
         {tab === "food" && <FoodTab day={day} saveDay={saveDay} totals={totals} profile={profile} />}
         {tab === "gym" && <GymTab date={date} day={day} saveDay={saveDay} />}
         {tab === "weight" && <WeightTab profile={profile} weights={weights} saveWeights={saveWeights} />}
-        {tab === "plan" && <PlanTab profile={profile} saveProfile={saveProfile} />}
+        {tab === "plan" && <PlanTab profile={profile} saveProfile={saveProfile} weights={weights} />}
       </div>
 
       <nav

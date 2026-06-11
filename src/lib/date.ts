@@ -20,3 +20,10 @@ export const daysBetween = (a: string, b: string) =>
 
 /** День недели (0 = вс) для даты "YYYY-MM-DD". */
 export const dayOfWeek = (s: string) => new Date(s + "T12:00:00").getDay();
+
+/** Дата + n дней → "YYYY-MM-DD". */
+export const addDays = (s: string, n: number) => {
+  const d = new Date(s + "T12:00:00");
+  d.setDate(d.getDate() + n);
+  return dstr(d);
+};

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Dumbbell, Footprints, Play, Plus, Trash2 } from "lucide-react";
 import type { DayLog, Profile, Totals, Weights } from "../../types";
-import { ACT_TYPES, CARB_TARGET, FAT_TARGET, SCHED_LABEL } from "../../constants";
+import { ACT_TYPES, SCHED_LABEL } from "../../constants";
 import { dayOfWeek } from "../../lib/date";
 import { goalLineAt, lastKnownWeight } from "../../lib/stats";
 import { nextId } from "../../lib/id";
@@ -47,8 +47,8 @@ export function TodayTab({ profile, totals, day, saveDay, weights, saveWeights, 
 
   const macros: Array<[string, number, number]> = [
     ["Белки", totals.p, profile.proteinTarget],
-    ["Жиры", totals.f, FAT_TARGET],
-    ["Углеводы", totals.c, CARB_TARGET],
+    ["Жиры", totals.f, profile.fatTarget],
+    ["Углеводы", totals.c, profile.carbTarget],
   ];
 
   return (
@@ -120,11 +120,21 @@ export function TodayTab({ profile, totals, day, saveDay, weights, saveWeights, 
         {weights[date] && (
           <p className="text-sm mt-3 text-body">
             {weights[date]} кг{" "}
-            {weights[date] <= goalToday ? (
-              <span className="text-accent">— идёте с опережением</span>
-            ) : (
-              <span className="text-muted">— чуть выше плана, смотрим на среднее за неделю</span>
-            )}
+            {(() => {
+              const w = weights[date];
+              if (profile.goal === "recomp")
+                return Math.abs(w - goalToday) <= 0.5 ? (
+                  <span className="text-accent">— вес в коридоре, рекомпозиция идёт</span>
+                ) : (
+                  <span className="text-muted">— небольшое отклонение, смотрим на среднее за неделю</span>
+                );
+              const ahead = profile.goal === "bulk" ? w >= goalToday : w <= goalToday;
+              return ahead ? (
+                <span className="text-accent">— идёте с опережением</span>
+              ) : (
+                <span className="text-muted">— чуть {profile.goal === "bulk" ? "ниже" : "выше"} плана, смотрим на среднее за неделю</span>
+              );
+            })()}
           </p>
         )}
       </section>
@@ -197,7 +207,9 @@ export function TodayTab({ profile, totals, day, saveDay, weights, saveWeights, 
           </ul>
         )}
         <p className="text-xs text-dim mt-3">
-          Дефицит уже заложен в {profile.kcalTarget} ккал — еду за тренировки не «отрабатываем» и не доедаем.
+          {profile.goal === "cut" && `Дефицит уже заложен в ${profile.kcalTarget} ккал — еду за тренировки не «отрабатываем» и не доедаем.`}
+          {profile.goal === "recomp" && `Калории подобраны под рекомпозицию — держим ${profile.kcalTarget} ккал и норму белка, прогресс смотрим по силовым.`}
+          {profile.goal === "bulk" && `Профицит уже заложен в ${profile.kcalTarget} ккал — главное добирать белок и прогрессировать в весах.`}
         </p>
       </section>
     </div>

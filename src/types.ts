@@ -4,13 +4,19 @@ export type Workout = "gym" | "foot";
 /** График недели: 0 = вс … 6 = сб. */
 export type Schedule = Record<number, Workout | null>;
 
+/** Режим цели: сброс веса, рекомпозиция, набор массы. */
+export type GoalMode = "cut" | "recomp" | "bulk";
+
 export interface Profile {
+  goal: GoalMode;
   startDate: string; // YYYY-MM-DD
   startWeight: number;
   goalWeight: number;
   goalDate: string; // YYYY-MM-DD
   kcalTarget: number;
   proteinTarget: number;
+  fatTarget: number;
+  carbTarget: number;
   schedule: Schedule;
 }
 
