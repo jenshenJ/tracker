@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Flame, Drumstick, Dumbbell, Scale, ClipboardList } from "lucide-react";
 import type { DayLog, Profile, Totals, Weights } from "./types";
 import { storage } from "./lib/storage";
@@ -43,6 +43,13 @@ export default function App() {
     storage.saveProfile(next);
   };
 
+  /* иконка под цель: iOS возьмёт её при добавлении на экран «Домой» */
+  useEffect(() => {
+    document
+      .querySelector('link[rel="apple-touch-icon"]')
+      ?.setAttribute("href", `/api/icon?goal=${profile.goalWeight}&size=192`);
+  }, [profile.goalWeight]);
+
   const totals = useMemo<Totals>(() => {
     const t: Totals = { kcal: 0, p: 0, f: 0, c: 0 };
     for (const f of day.foods) {
@@ -67,7 +74,7 @@ export default function App() {
         <header className="flex items-end justify-between mb-8">
           <div>
             <div className="eyebrow">{fmtDate(date)}</div>
-            <div className="disp text-2xl font-semibold leading-tight mt-1">95</div>
+            <div className="disp text-2xl font-semibold leading-tight mt-1">{profile.goalWeight}</div>
           </div>
           <input
             type="date"

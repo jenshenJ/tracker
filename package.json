@@ -13,11 +13,18 @@
   },
   "pnpm": {
     "supportedArchitectures": {
-      "os": ["darwin", "linux"],
-      "cpu": ["arm64", "x64"]
+      "os": [
+        "darwin",
+        "linux"
+      ],
+      "cpu": [
+        "arm64",
+        "x64"
+      ]
     }
   },
   "dependencies": {
+    "@resvg/resvg-js": "^2.6.2",
     "lucide-react": "^0.460.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
