@@ -18,6 +18,8 @@ html,
 body {
   background: var(--color-canvas);
   margin: 0;
+  /* без резинового оверскролла — фиксированное меню не «отлипает» от низа */
+  overscroll-behavior-y: none;
 }
 
 body {

@@ -54,7 +54,14 @@ export default function App() {
 
   return (
     <div className="min-h-dvh bg-canvas text-fg">
-      <div className="max-w-md mx-auto pb-28 px-4 pt-5">
+      {/* отступы под чёлку (safe-area-top) и нижнее меню + home-индикатор */}
+      <div
+        className="max-w-md mx-auto px-4"
+        style={{
+          paddingTop: "calc(env(safe-area-inset-top, 0px) + 1.25rem)",
+          paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 7rem)",
+        }}
+      >
         <header className="flex items-end justify-between mb-4">
           <div>
             <div className="disp text-3xl font-bold leading-none uppercase">Путь к 95</div>
