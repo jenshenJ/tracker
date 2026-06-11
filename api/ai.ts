@@ -40,17 +40,23 @@ async function callAnthropic(apiKey: string, prompt: string, maxTokens: number):
 
 async function callOpenAiCompatible(apiKey: string, prompt: string, maxTokens: number): Promise<string> {
   const base = (process.env.AI_BASE_URL ?? "https://openrouter.ai/api/v1").replace(/\/$/, "");
+  const isGemini = base.includes("generativelanguage.googleapis.com");
+  const body: Record<string, unknown> = {
+    model: process.env.AI_MODEL ?? "gemini-3.5-flash",
+    /* у «думающих» моделей reasoning-токены съедают max_tokens — даём запас */
+    max_tokens: Math.max(maxTokens * 4, 6000),
+    messages: [{ role: "user", content: prompt }],
+  };
+  /* для Gemini ограничиваем размышления, чтобы ответ не обрезался */
+  if (isGemini) body.reasoning_effort = process.env.AI_REASONING_EFFORT ?? "low";
+
   const r = await fetch(`${base}/chat/completions`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${apiKey}`,
     },
-    body: JSON.stringify({
-      model: process.env.AI_MODEL ?? "gemini-3.5-flash",
-      max_tokens: maxTokens,
-      messages: [{ role: "user", content: prompt }],
-    }),
+    body: JSON.stringify(body),
   });
   if (!r.ok) throw new Error(`${base} ${r.status}: ${await r.text().catch(() => "")}`);
   const data = (await r.json()) as { choices?: Array<{ message?: { content?: string } }> };
