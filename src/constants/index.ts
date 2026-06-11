@@ -1,17 +1,10 @@
-import type { GoalMode, Meal, Profile, Workout } from "../types";
+import type { GoalMode, Meal, Schedule, Workout } from "../types";
 
-export const DEFAULT_PROFILE: Profile = {
-  goal: "cut",
-  startDate: "2026-06-11",
-  startWeight: 114,
-  goalWeight: 95,
-  goalDate: "2026-11-03",
-  kcalTarget: 2350,
-  proteinTarget: 185,
-  fatTarget: 75,
-  carbTarget: 230,
-  schedule: { 0: null, 1: "gym", 2: null, 3: "gym", 4: null, 5: "gym", 6: "foot" },
-};
+/** Структурный дефолт расписания: силовые пн/ср/пт. Весов тела в коде нет — их задаёт онбординг. */
+export const DEFAULT_SCHEDULE: Schedule = { 0: null, 1: "gym", 2: null, 3: "gym", 4: null, 5: "gym", 6: null };
+
+/** Горизонт цели по умолчанию, дней (~16 недель). */
+export const DEFAULT_GOAL_HORIZON_DAYS = 112;
 
 export const GOAL_LABEL: Record<GoalMode, string> = {
   cut: "Сброс",

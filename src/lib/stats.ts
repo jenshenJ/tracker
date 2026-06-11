@@ -1,4 +1,4 @@
-import type { Profile, Weights } from "../types";
+import type { DayLog, Profile, Weights } from "../types";
 import { addDays, daysBetween, dstr } from "./date";
 
 /** Плановый вес на дату (линейная интерполяция от старта к цели). */
@@ -26,6 +26,21 @@ export function weeklyAvg(weights: Weights, endDate: string, days = 7): number |
 export function lastKnownWeight(weights: Weights): number | null {
   const keys = Object.keys(weights).sort();
   return keys.length ? weights[keys[keys.length - 1]] : null;
+}
+
+/**
+ * Серия: сколько дней подряд записана еда. Если сегодня ещё пусто,
+ * серия не сгорает — считается до вчера.
+ */
+export function foodStreak(days: Record<string, DayLog>, today: string): number {
+  const logged = (d: string) => (days["day:" + d]?.foods.length ?? 0) > 0;
+  let d = logged(today) ? today : addDays(today, -1);
+  let n = 0;
+  while (logged(d)) {
+    n++;
+    d = addDays(d, -1);
+  }
+  return n;
 }
 
 /** Контрольные точки 25/50/75/100% пути: [дата, подпись]. */

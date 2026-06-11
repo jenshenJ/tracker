@@ -103,7 +103,7 @@ export function TodayTab({ profile, totals, day, saveDay, weights, saveWeights, 
             type="number"
             inputMode="decimal"
             step="0.1"
-            placeholder={lastW ? String(lastW) : "114.0"}
+            placeholder={String(lastW ?? profile.startWeight)}
             value={w}
             onChange={(e) => setWEdit({ date, value: e.target.value })}
             className="flex-1 min-w-0 bg-transparent px-1 py-2 disp text-3xl font-medium outline-none"

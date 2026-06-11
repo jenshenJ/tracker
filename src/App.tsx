@@ -3,6 +3,8 @@ import { Flame, Drumstick, Dumbbell, Scale, ClipboardList } from "lucide-react";
 import type { DayLog, Profile, Totals, Weights } from "./types";
 import { storage } from "./lib/storage";
 import { todayStr, fmtDate } from "./lib/date";
+import { foodStreak } from "./lib/stats";
+import { Onboarding } from "./components/Onboarding";
 import { TodayTab } from "./components/tabs/TodayTab";
 import { FoodTab } from "./components/tabs/FoodTab";
 import { GymTab } from "./components/tabs/GymTab";
@@ -22,7 +24,7 @@ const TABS: Array<[Tab, string, typeof Flame]> = [
 export default function App() {
   const [tab, setTab] = useState<Tab>("today");
   const [date, setDate] = useState(todayStr());
-  const [profile, setProfile] = useState<Profile>(() => storage.loadProfile());
+  const [profile, setProfile] = useState<Profile | null>(() => storage.loadProfile());
   const [weights, setWeights] = useState<Weights>(() => storage.loadWeights());
 
   /* день выводится из даты; правки живут в override — без setState в эффектах */
@@ -45,10 +47,20 @@ export default function App() {
 
   /* иконка под цель: iOS возьмёт её при добавлении на экран «Домой» */
   useEffect(() => {
+    if (!profile) return;
     document
       .querySelector('link[rel="apple-touch-icon"]')
       ?.setAttribute("href", `/api/icon?goal=${profile.goalWeight}&size=192`);
-  }, [profile.goalWeight]);
+  }, [profile]);
+
+  /* серия дней с записанной едой; пересчитывается после каждой записи */
+  const { streak, todayLogged } = useMemo(() => {
+    const all = { ...storage.allDays(), ["day:" + date]: day };
+    return {
+      streak: foodStreak(all, todayStr()),
+      todayLogged: (all["day:" + todayStr()]?.foods.length ?? 0) > 0,
+    };
+  }, [date, day]);
 
   const totals = useMemo<Totals>(() => {
     const t: Totals = { kcal: 0, p: 0, f: 0, c: 0 };
@@ -60,6 +72,18 @@ export default function App() {
     }
     return t;
   }, [day]);
+
+  /* первый запуск: профиль создаёт пользователь */
+  if (!profile) {
+    return (
+      <Onboarding
+        onComplete={(p) => {
+          setProfile(p);
+          storage.saveProfile(p);
+        }}
+      />
+    );
+  }
 
   return (
     <div className="min-h-dvh bg-canvas text-fg">
@@ -76,14 +100,25 @@ export default function App() {
             <div className="eyebrow">{fmtDate(date)}</div>
             <div className="disp text-2xl font-semibold leading-tight mt-1">{profile.goalWeight}</div>
           </div>
-          <input
-            type="date"
-            value={date}
-            max={todayStr()}
-            onChange={(e) => setDate(e.target.value)}
-            className="bg-transparent border-b border-line px-1 py-1 text-sm text-muted"
-            aria-label="Выбрать дату"
-          />
+          <div className="flex items-center gap-3">
+            {streak > 0 && (
+              <span
+                className={`flex items-center gap-1 disp text-base font-semibold ${todayLogged ? "text-accent" : "text-dim"}`}
+                title={`Серия: ${streak} дн. с записанной едой${todayLogged ? "" : " — запишите еду сегодня, чтобы не сгорела"}`}
+                aria-label={`Серия записи еды: ${streak} дней`}
+              >
+                <Flame className="w-4 h-4" fill={todayLogged ? "currentColor" : "none"} /> {streak}
+              </span>
+            )}
+            <input
+              type="date"
+              value={date}
+              max={todayStr()}
+              onChange={(e) => setDate(e.target.value)}
+              className="bg-transparent border-b border-line px-1 py-1 text-sm text-muted"
+              aria-label="Выбрать дату"
+            />
+          </div>
         </header>
 
         {tab === "today" && (

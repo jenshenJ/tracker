@@ -1,5 +1,7 @@
 import type { CustomFood, DayLog, Profile, Weights, WorkoutLog } from "../types";
-import { DEFAULT_PROFILE } from "../constants";
+import { DEFAULT_GOAL_HORIZON_DAYS, DEFAULT_SCHEDULE } from "../constants";
+import { addDays, todayStr } from "./date";
+import { recommendTargets } from "./targets";
 
 const PREFIX = "t95:";
 
@@ -23,9 +25,25 @@ function write(key: string, value: unknown): void {
 const EMPTY_DAY: DayLog = { foods: [], acts: [] };
 
 export const storage = {
-  loadProfile(): Profile {
-    const p = read<Partial<Profile>>("profile", DEFAULT_PROFILE);
-    return { ...DEFAULT_PROFILE, ...p, schedule: { ...DEFAULT_PROFILE.schedule, ...(p.schedule ?? {}) } };
+  /** null — профиль ещё не создан (первый запуск → онбординг). */
+  loadProfile(): Profile | null {
+    const p = read<Partial<Profile> | null>("profile", null);
+    if (!p || typeof p.startWeight !== "number" || typeof p.goalWeight !== "number") return null;
+    /* back-compat: недостающие поля выводим из веса, без хардкод-значений */
+    const goal = p.goal ?? "cut";
+    const rec = recommendTargets(p.startWeight, goal);
+    return {
+      goal,
+      startDate: p.startDate ?? todayStr(),
+      startWeight: p.startWeight,
+      goalWeight: p.goalWeight,
+      goalDate: p.goalDate ?? addDays(todayStr(), DEFAULT_GOAL_HORIZON_DAYS),
+      kcalTarget: p.kcalTarget ?? rec.kcal,
+      proteinTarget: p.proteinTarget ?? rec.protein,
+      fatTarget: p.fatTarget ?? rec.fat,
+      carbTarget: p.carbTarget ?? rec.carbs,
+      schedule: { ...DEFAULT_SCHEDULE, ...(p.schedule ?? {}) },
+    };
   },
   saveProfile: (p: Profile) => write("profile", p),
 

@@ -45,7 +45,7 @@ export interface DayLog {
   acts: Activity[];
 }
 
-/** Вес по датам: { "2026-06-11": 114.0 }. */
+/** Вес по датам, ключ — "YYYY-MM-DD". */
 export type Weights = Record<string, number>;
 
 export interface Totals {
