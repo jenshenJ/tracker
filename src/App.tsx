@@ -65,7 +65,7 @@ export default function App() {
         <header className="flex items-end justify-between mb-8">
           <div>
             <div className="eyebrow">{fmtDate(date)}</div>
-            <div className="disp text-2xl font-semibold leading-tight mt-1">Путь к 95</div>
+            <div className="disp text-2xl font-semibold leading-tight mt-1">95</div>
           </div>
           <input
             type="date"
