@@ -47,7 +47,7 @@ async function callOpenAiCompatible(apiKey: string, prompt: string, maxTokens: n
       Authorization: `Bearer ${apiKey}`,
     },
     body: JSON.stringify({
-      model: process.env.AI_MODEL ?? "gemini-2.0-flash",
+      model: process.env.AI_MODEL ?? "gemini-3.5-flash",
       max_tokens: maxTokens,
       messages: [{ role: "user", content: prompt }],
     }),
