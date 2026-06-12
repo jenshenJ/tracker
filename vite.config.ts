@@ -1,7 +1,7 @@
 import { defineConfig, loadEnv, type Plugin } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
-import { MAX_PROMPT_LENGTH, MAX_TOKENS_LIMIT, aiConfigured, runAi, type AiEnv } from "./api/_core";
+import { MAX_PROMPT_LENGTH, MAX_TOKENS_LIMIT, aiConfigured, runAi, type AiEnv } from "./api/_core.js";
 
 /**
  * Dev-аналог Vercel-функции /api/ai: тот же код провайдеров (api/_core),

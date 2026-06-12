@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { MAX_PROMPT_LENGTH, MAX_TOKENS_LIMIT, aiConfigured, runAi } from "./_core";
+import { MAX_PROMPT_LENGTH, MAX_TOKENS_LIMIT, aiConfigured, runAi } from "./_core.js";
 
 /**
  * Прокси к LLM. Провайдер настраивается env-переменными на Vercel:

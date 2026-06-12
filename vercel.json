@@ -1,6 +1,7 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "functions": {
+    "api/ai.ts": { "maxDuration": 60 },
     "api/icon.ts": { "includeFiles": "api/assets/**" }
   },
   "headers": [
