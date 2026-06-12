@@ -1,4 +1,4 @@
-import type { CustomFood, DayLog, Profile, Weights, WorkoutLog } from "../types";
+import type { ActiveProgram, CustomFood, DayLog, Profile, Weights, WorkoutLog, WorkoutProgram } from "../types";
 import { DEFAULT_GOAL_HORIZON_DAYS, DEFAULT_SCHEDULE } from "../constants";
 import { addDays, todayStr } from "./date";
 import { recommendTargets } from "./targets";
@@ -61,6 +61,16 @@ export const storage = {
 
   loadWorkouts: (): Record<string, WorkoutLog> => read<Record<string, WorkoutLog>>("workouts", {}),
   saveWorkouts: (w: Record<string, WorkoutLog>) => write("workouts", w),
+
+  loadCustomPrograms: (): WorkoutProgram[] => read<WorkoutProgram[]>("customPrograms", []),
+  saveCustomPrograms: (p: WorkoutProgram[]) => write("customPrograms", p),
+
+  /**
+   * Активная программа. Дефолт — исходная встроенная с историческим якорем
+   * (понедельник первой недели цикла), чтобы у старых пользователей не сбилась чётность.
+   */
+  loadActiveProgram: (): ActiveProgram => read<ActiveProgram>("activeProgram", { id: "base-3d-no-axial", anchor: "2026-06-01" }),
+  saveActiveProgram: (a: ActiveProgram) => write("activeProgram", a),
 
   /** Все сохранённые дни дневника: { "day:YYYY-MM-DD": DayLog }. */
   allDays(): Record<string, DayLog> {

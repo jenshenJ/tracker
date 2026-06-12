@@ -1,4 +1,5 @@
 import type { ReactElement, SVGProps } from "react";
+import { exerciseGroup } from "../constants/exercises";
 
 /** Фирменные line-иконки упражнений в стиле lucide (stroke 1.6, 24×24). */
 
@@ -139,6 +140,65 @@ const TriPush = ({ className }: P) => (
   </svg>
 );
 
+/* присед: штанга на плечах, согнутые ноги */
+const Squat = ({ className }: P) => (
+  <svg {...base} className={className}>
+    <line x1="4" y1="6" x2="20" y2="6" />
+    <circle cx="12" cy="9" r="1.8" />
+    <path d="M12 11v4l-4 3" />
+    <path d="M12 15l4 3" />
+    <line x1="3" y1="21" x2="21" y2="21" />
+  </svg>
+);
+
+/* мост: корпус-дуга со штангой на тазу */
+const Bridge = ({ className }: P) => (
+  <svg {...base} className={className}>
+    <circle cx="4.5" cy="13" r="1.8" />
+    <path d="M6.5 14 12 12l5 2 2 4" />
+    <line x1="12" y1="8" x2="12" y2="12" />
+    <rect x="10.8" y="6" width="2.4" height="2.4" rx="0.5" />
+    <line x1="3" y1="20" x2="21" y2="20" />
+  </svg>
+);
+
+/* планка: прямой корпус на локтях */
+const Plank = ({ className }: P) => (
+  <svg {...base} className={className}>
+    <circle cx="4.5" cy="10" r="1.8" />
+    <path d="M6.5 11.5 19 14" />
+    <path d="M6.5 13.5v4" />
+    <path d="M19 14v3.5" />
+    <line x1="3" y1="20" x2="21" y2="20" />
+  </svg>
+);
+
+/* кардио: пульс */
+const Cardio = ({ className }: P) => (
+  <svg {...base} className={className}>
+    <path d="M3 12h4l2-5 4 10 2-5h6" />
+  </svg>
+);
+
+/* подтягивания: турник и руки */
+const PullUps = ({ className }: P) => (
+  <svg {...base} className={className}>
+    <line x1="3" y1="4" x2="21" y2="4" />
+    <path d="M8 4v4l4 3 4-3V4" />
+    <circle cx="12" cy="13.5" r="1.8" />
+    <path d="M12 15.5v3" />
+  </svg>
+);
+
+/* гантель: дефолт */
+const DumbbellIcon = ({ className }: P) => (
+  <svg {...base} className={className}>
+    <rect x="2.5" y="9" width="3" height="6" rx="0.8" />
+    <rect x="18.5" y="9" width="3" height="6" rx="0.8" />
+    <line x1="5.5" y1="12" x2="18.5" y2="12" />
+  </svg>
+);
+
 export const EXERCISE_ICONS: Record<string, (p: P) => ReactElement> = {
   bench0: Bench0,
   bench30: Bench30,
@@ -151,9 +211,27 @@ export const EXERCISE_ICONS: Record<string, (p: P) => ReactElement> = {
   legext: LegExt,
   curl: Curl,
   tripush: TriPush,
+  squat: Squat,
+  hipThrust: Bridge,
+  plank: Plank,
+  pullups: PullUps,
+};
+
+/** Фолбэк-иконки по группе мышц. */
+const GROUP_ICONS: Record<string, (p: P) => ReactElement> = {
+  chest: Bench0,
+  back: PullUps,
+  shoulders: LatRaise,
+  biceps: Curl,
+  triceps: TriPush,
+  legs: Squat,
+  glutes: Bridge,
+  calves: Calf,
+  core: Plank,
+  cardio: Cardio,
 };
 
 export function ExerciseIcon({ id, className }: { id: string; className?: string }) {
-  const Icon = EXERCISE_ICONS[id];
-  return Icon ? <Icon className={className} /> : null;
+  const Icon = EXERCISE_ICONS[id] ?? GROUP_ICONS[exerciseGroup(id) ?? ""] ?? DumbbellIcon;
+  return <Icon className={className} />;
 }

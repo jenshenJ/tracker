@@ -1,18 +1,24 @@
-import { useEffect, useMemo, useState } from "react";
-import { Check, ChevronRight, Play, RotateCcw, SkipForward, Timer, Trash2 } from "lucide-react";
-import type { DayLog, ProgramSlot, WorkoutExerciseLog, WorkoutLog } from "../../types";
-import { EXERCISES, GYM_WEEKDAYS, findProgramDay } from "../../constants/program";
-import { RU_DAYS, fmtDate } from "../../lib/date";
-import { isGymDay, lastSetFor, nearestGymWeekday, programWeek } from "../../lib/gym";
+import { useEffect, useState } from "react";
+import { Check, ChevronRight, Play, RotateCcw, Settings2, SkipForward, Timer, Trash2 } from "lucide-react";
+import type { ActiveProgram, DayLog, ProgramSlot, WorkoutExerciseLog, WorkoutLog, WorkoutProgram } from "../../types";
+import { exerciseName } from "../../constants/exercises";
+import { BUILTIN_PROGRAMS, findBuiltin, findProgramDay, programWeekdays } from "../../constants/programs";
+import { RU_DAYS, fmtDate, todayStr } from "../../lib/date";
+import { blankProgram, isGymDay, lastSetFor, mondayOf, nearestGymWeekday, programWeekFor } from "../../lib/gym";
 import { nextId } from "../../lib/id";
 import { storage } from "../../lib/storage";
 import { ExerciseIcon } from "../ExerciseIcons";
+import { AiProgramBuilder } from "../gym/AiProgramBuilder";
+import { ProgramEditor } from "../gym/ProgramEditor";
+import { ProgramManager } from "../gym/ProgramManager";
 
 interface Props {
   date: string;
   day: DayLog;
   saveDay: (d: DayLog) => void;
 }
+
+type View = "main" | "programs" | "editor" | "ai";
 
 const INTENSITY_STYLE: Record<string, string> = {
   легкая: "text-dim",
@@ -38,19 +44,27 @@ const workoutStats = (w: WorkoutLog) => {
 
 export function GymTab({ date, day, saveDay }: Props) {
   const [workouts, setWorkouts] = useState<Record<string, WorkoutLog>>(() => storage.loadWorkouts());
-  const [pick, setPick] = useState<{ week: 1 | 2; weekday: number } | null>(null);
-  /* черновики ввода по упражнениям: пока не записан подход, живут здесь */
+  const [customPrograms, setCustomPrograms] = useState<WorkoutProgram[]>(() => storage.loadCustomPrograms());
+  const [active, setActive] = useState<ActiveProgram>(() => storage.loadActiveProgram());
+  const [view, setView] = useState<View>("main");
+  const [draft, setDraft] = useState<WorkoutProgram | null>(null);
+
+  const [pick, setPick] = useState<{ week: number; weekday: number } | null>(null);
   const [drafts, setDrafts] = useState<Record<string, { w?: string; r?: string }>>({});
   const [focusId, setFocusId] = useState<string | null>(null);
   const [restStart, setRestStart] = useState<number | null>(null);
   const [now, setNow] = useState(() => Date.now());
   const [historyOpen, setHistoryOpen] = useState<string | null>(null);
 
+  const program: WorkoutProgram =
+    customPrograms.find((p) => p.id === active.id) ?? findBuiltin(active.id) ?? BUILTIN_PROGRAMS[0];
+  const weekdays = programWeekdays(program);
+
   const log = workouts[date] ?? null;
   const running = !!log && !log.finishedAt;
-  const week = pick?.week ?? log?.week ?? programWeek(date);
-  const weekday = pick?.weekday ?? log?.weekday ?? nearestGymWeekday(date);
-  const program = findProgramDay(week, weekday);
+  const week = pick?.week ?? log?.week ?? programWeekFor(date, active, program.weeks);
+  const weekday = pick?.weekday ?? log?.weekday ?? nearestGymWeekday(date, weekdays);
+  const programDay = findProgramDay(program, week, weekday);
 
   useEffect(() => {
     if (!running) return;
@@ -64,28 +78,38 @@ export function GymTab({ date, day, saveDay }: Props) {
   };
   const saveLog = (next: WorkoutLog) => saveAll({ ...workouts, [date]: next });
 
+  const savePrograms = (list: WorkoutProgram[]) => {
+    setCustomPrograms(list);
+    storage.saveCustomPrograms(list);
+  };
+  const activate = (p: WorkoutProgram) => {
+    const a = { id: p.id, anchor: mondayOf(todayStr()) };
+    setActive(a);
+    storage.saveActiveProgram(a);
+    setPick(null);
+    setView("main");
+  };
+
   const updateEntry = (exerciseId: string, fn: (e: WorkoutExerciseLog) => WorkoutExerciseLog) => {
     if (!log) return;
     saveLog({ ...log, entries: log.entries.map((e) => (e.exerciseId === exerciseId ? fn(e) : e)) });
   };
 
-  /* текущее упражнение: выбранное вручную, иначе первое незаконченное */
-  const currentSlot: ProgramSlot | null = useMemo(() => {
-    if (!log || !program) return null;
+  const currentSlot: ProgramSlot | null = (() => {
+    if (!log || !programDay) return null;
     const incomplete = (s: ProgramSlot) => {
       const e = log.entries.find((x) => x.exerciseId === s.exerciseId);
       return e && !e.skipped && e.sets.length < s.sets;
     };
     if (focusId) {
-      const s = program.slots.find((x) => x.exerciseId === focusId);
+      const s = programDay.slots.find((x) => x.exerciseId === focusId);
       if (s && incomplete(s)) return s;
     }
-    return program.slots.find(incomplete) ?? null;
-  }, [log, program, focusId]);
+    return programDay.slots.find(incomplete) ?? null;
+  })();
 
   const entryOf = (id: string) => log?.entries.find((x) => x.exerciseId === id);
 
-  /* значения по умолчанию: последний свой подход, иначе прошлая тренировка */
   const defaults = (id: string) => {
     const own = entryOf(id)?.sets.slice(-1)[0];
     const prev = own ?? lastSetFor(workouts, id, date);
@@ -95,13 +119,13 @@ export function GymTab({ date, day, saveDay }: Props) {
   const inputR = currentSlot ? (drafts[currentSlot.exerciseId]?.r ?? defaults(currentSlot.exerciseId).r) : "";
 
   const start = () => {
-    if (!program) return;
+    if (!programDay) return;
     saveLog({
       date,
       week,
       weekday,
       startedAt: new Date().toISOString(),
-      entries: program.slots.map((s) => ({ exerciseId: s.exerciseId, skipped: false, sets: [] })),
+      entries: programDay.slots.map((s) => ({ exerciseId: s.exerciseId, skipped: false, sets: [] })),
     });
     setDrafts({});
     setFocusId(null);
@@ -133,25 +157,72 @@ export function GymTab({ date, day, saveDay }: Props) {
     saveAll(all);
   };
 
-  const history = Object.values(workouts)
-    .filter((w) => w.date !== date || !!w.finishedAt)
-    .sort((a, b) => b.date.localeCompare(a.date));
+  /* ── экраны программ ── */
+  if (view === "programs")
+    return (
+      <ProgramManager
+        custom={customPrograms}
+        activeId={active.id}
+        onActivate={activate}
+        onEdit={(p) => {
+          setDraft(p.builtin ? { ...JSON.parse(JSON.stringify(p)), id: "custom-" + Date.now(), name: p.name + " (копия)", builtin: undefined } : p);
+          setView("editor");
+        }}
+        onDelete={(id) => {
+          if (!window.confirm("Удалить программу?")) return;
+          savePrograms(customPrograms.filter((x) => x.id !== id));
+          if (active.id === id) activate(BUILTIN_PROGRAMS[0]);
+        }}
+        onCreate={() => {
+          setDraft(blankProgram());
+          setView("editor");
+        }}
+        onAi={() => setView("ai")}
+        onClose={() => setView("main")}
+      />
+    );
+
+  if (view === "editor" && draft)
+    return (
+      <ProgramEditor
+        initial={draft}
+        onSave={(p) => {
+          savePrograms([p, ...customPrograms.filter((x) => x.id !== p.id)]);
+          setDraft(null);
+          setView("programs");
+        }}
+        onCancel={() => {
+          setDraft(null);
+          setView("programs");
+        }}
+      />
+    );
+
+  if (view === "ai")
+    return (
+      <AiProgramBuilder
+        onResult={(p) => {
+          setDraft(p);
+          setView("editor");
+        }}
+        onCancel={() => setView("programs")}
+      />
+    );
 
   const done = !!log?.finishedAt;
   const allDone =
     !!log &&
-    !!program &&
-    program.slots.every((s) => {
+    !!programDay &&
+    programDay.slots.every((s) => {
       const e = entryOf(s.exerciseId);
       return e && (e.skipped || e.sets.length >= s.sets);
     });
 
   /* ── режим тренировки: фокус на одном упражнении ── */
-  if (running && program && log) {
+  if (running && programDay && log) {
     const curEntry = currentSlot ? entryOf(currentSlot.exerciseId) : null;
     return (
       <div className="space-y-8">
-        {/* таймеры */}
         <section className="flex items-end justify-between">
           <div>
             <div className="eyebrow flex items-center gap-1.5">
@@ -169,10 +240,9 @@ export function GymTab({ date, day, saveDay }: Props) {
           )}
         </section>
 
-        {/* полоска прогресса: иконки упражнений */}
         <section>
           <div className="flex gap-2 flex-wrap">
-            {program.slots.map((s) => {
+            {programDay.slots.map((s) => {
               const e = entryOf(s.exerciseId)!;
               const complete = e.sets.length >= s.sets;
               const isCur = currentSlot?.exerciseId === s.exerciseId;
@@ -189,7 +259,7 @@ export function GymTab({ date, day, saveDay }: Props) {
                           ? "bg-raised text-dim"
                           : "bg-surface text-muted"
                   }`}
-                  aria-label={`${EXERCISES[s.exerciseId]}: ${e.skipped ? "пропущено" : `${e.sets.length} из ${s.sets}`}`}
+                  aria-label={`${exerciseName(s.exerciseId)}: ${e.skipped ? "пропущено" : `${e.sets.length} из ${s.sets}`}`}
                 >
                   {complete && !isCur ? <Check className="w-4 h-4" /> : <ExerciseIcon id={s.exerciseId} className="w-5 h-5" />}
                 </button>
@@ -198,13 +268,12 @@ export function GymTab({ date, day, saveDay }: Props) {
           </div>
         </section>
 
-        {/* текущее упражнение */}
         {currentSlot && curEntry ? (
           <section className="border-t border-line pt-6">
             <div className="flex items-center gap-3">
               <ExerciseIcon id={currentSlot.exerciseId} className="w-8 h-8 text-accent shrink-0" />
               <div className="min-w-0">
-                <div className="disp text-xl font-medium leading-tight">{EXERCISES[currentSlot.exerciseId]}</div>
+                <div className="disp text-xl font-medium leading-tight">{exerciseName(currentSlot.exerciseId)}</div>
                 <div className="text-xs mt-0.5">
                   <span className={INTENSITY_STYLE[currentSlot.intensity]}>{currentSlot.intensity}</span>
                   <span className="text-dim">
@@ -224,9 +293,7 @@ export function GymTab({ date, day, saveDay }: Props) {
                 {curEntry.sets.map((s, i) => (
                   <button
                     key={i}
-                    onClick={() =>
-                      updateEntry(currentSlot.exerciseId, (x) => ({ ...x, sets: x.sets.filter((_, j) => j !== i) }))
-                    }
+                    onClick={() => updateEntry(currentSlot.exerciseId, (x) => ({ ...x, sets: x.sets.filter((_, j) => j !== i) }))}
                     className="bg-surface rounded-full px-3 py-1.5 text-xs disp cursor-pointer hover:text-danger transition-colors duration-150"
                     aria-label={`Подход ${i + 1}: ${s.weight} кг × ${s.reps}. Нажмите, чтобы удалить`}
                   >
@@ -301,19 +368,31 @@ export function GymTab({ date, day, saveDay }: Props) {
   }
 
   /* ── режим планирования + история ── */
-  const todays = log; // завершённая тренировка за выбранную дату
+  const todays = log;
+  const history = Object.values(workouts)
+    .filter((w) => w.date !== date || !!w.finishedAt)
+    .sort((a, b) => b.date.localeCompare(a.date));
+
   return (
     <div className="space-y-10">
       <section>
         <div className="flex items-baseline justify-between">
-          <div className="eyebrow">Зал · неделя {week}</div>
-          {!isGymDay(date) && !todays && <span className="text-xs text-dim">сегодня по программе отдых</span>}
+          <div className="eyebrow">
+            Зал{program.weeks > 1 ? ` · неделя ${week}` : ""}
+          </div>
+          <button
+            onClick={() => setView("programs")}
+            className="text-xs text-muted hover:text-fg cursor-pointer flex items-center gap-1.5"
+          >
+            <Settings2 className="w-3.5 h-3.5" /> {program.name}
+          </button>
         </div>
+        {!isGymDay(date, weekdays) && !todays && <p className="text-xs text-dim mt-1">сегодня по программе отдых</p>}
 
         {!todays && (
           <>
-            <div className="flex gap-2 mt-4">
-              {GYM_WEEKDAYS.map((d) => (
+            <div className="flex gap-2 mt-4 flex-wrap">
+              {weekdays.map((d) => (
                 <button
                   key={d}
                   onClick={() => setPick({ week, weekday: d })}
@@ -324,23 +403,25 @@ export function GymTab({ date, day, saveDay }: Props) {
                   {RU_DAYS[d]}
                 </button>
               ))}
-              <button
-                onClick={() => setPick({ week: week === 1 ? 2 : 1, weekday })}
-                className="ml-auto rounded-full px-4 py-2 text-xs font-semibold cursor-pointer bg-surface text-dim hover:text-muted transition-colors duration-150"
-                aria-label="Переключить неделю программы"
-              >
-                нед. {week} ⇄
-              </button>
+              {program.weeks > 1 && (
+                <button
+                  onClick={() => setPick({ week: (week % program.weeks) + 1, weekday })}
+                  className="ml-auto rounded-full px-4 py-2 text-xs font-semibold cursor-pointer bg-surface text-dim hover:text-muted transition-colors duration-150"
+                  aria-label="Переключить неделю программы"
+                >
+                  нед. {week} ⇄
+                </button>
+              )}
             </div>
 
-            {program ? (
+            {programDay ? (
               <>
                 <ul className="mt-5">
-                  {program.slots.map((s) => (
-                    <li key={s.exerciseId} className="flex items-center gap-3 border-b border-line py-3 first:border-t">
+                  {programDay.slots.map((s, i) => (
+                    <li key={s.exerciseId + i} className="flex items-center gap-3 border-b border-line py-3 first:border-t">
                       <ExerciseIcon id={s.exerciseId} className="w-6 h-6 text-muted shrink-0" />
                       <div className="min-w-0 flex-1">
-                        <div className="text-sm truncate">{EXERCISES[s.exerciseId]}</div>
+                        <div className="text-sm truncate">{exerciseName(s.exerciseId)}</div>
                         <div className={`text-xs ${INTENSITY_STYLE[s.intensity]}`}>{s.intensity}</div>
                       </div>
                       <div className="disp text-sm text-muted shrink-0">
@@ -362,7 +443,6 @@ export function GymTab({ date, day, saveDay }: Props) {
           </>
         )}
 
-        {/* итог завершённой тренировки за выбранную дату */}
         {todays && done && (
           <div className="mt-4">
             <div className="disp text-3xl font-semibold">
@@ -387,7 +467,6 @@ export function GymTab({ date, day, saveDay }: Props) {
         )}
       </section>
 
-      {/* история */}
       {history.length > 0 && (
         <section>
           <div className="eyebrow">История</div>
@@ -406,11 +485,13 @@ export function GymTab({ date, day, saveDay }: Props) {
                       <div className="min-w-0">
                         <div className="text-sm">{fmtDate(w.date)}</div>
                         <div className="text-xs text-dim">
-                          нед. {w.week} · {RU_DAYS[w.weekday]} · {st.sets} подходов · {Math.round((st.tonnage / 1000) * 10) / 10} т
+                          {RU_DAYS[w.weekday]} · {st.sets} подходов · {Math.round((st.tonnage / 1000) * 10) / 10} т
                           {st.min !== null && ` · ${st.min} мин`}
                         </div>
                       </div>
-                      <ChevronRight className={`w-4 h-4 text-dim shrink-0 transition-transform duration-200 ${open ? "rotate-90" : ""}`} />
+                      <ChevronRight
+                        className={`w-4 h-4 text-dim shrink-0 transition-transform duration-200 ${open ? "rotate-90" : ""}`}
+                      />
                     </button>
                     <button
                       onClick={() => deleteWorkout(w.date)}
@@ -427,7 +508,7 @@ export function GymTab({ date, day, saveDay }: Props) {
                         <li key={e.exerciseId} className="flex items-start gap-2.5">
                           <ExerciseIcon id={e.exerciseId} className="w-4.5 h-4.5 text-dim shrink-0 mt-0.5" />
                           <div className="min-w-0">
-                            <span className="text-xs text-muted">{EXERCISES[e.exerciseId]}</span>
+                            <span className="text-xs text-muted">{exerciseName(e.exerciseId)}</span>
                             <div className="text-xs disp text-body">
                               {e.skipped ? (
                                 <span className="text-dim">пропущено</span>

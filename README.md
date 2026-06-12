@@ -36,10 +36,18 @@ src/
 ## Разработка
 
 ```bash
-npm install
-npm run dev        # vite dev-сервер (без /api)
-vercel dev         # dev-сервер вместе с serverless /api/ai
-npm run build      # typecheck + прод-сборка в dist/
+pnpm install
+pnpm dev           # vite dev-сервер; /api/ai работает, если ключи в .env.local
+pnpm build         # typecheck + прод-сборка в dist/
+pnpm lint          # eslint
+```
+
+Для AI в dev-режиме создайте `.env.local` (не коммитится):
+
+```
+AI_API_KEY=...
+AI_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai
+AI_MODEL=gemini-3.5-flash
 ```
 
 ## Данные

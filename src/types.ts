@@ -80,6 +80,25 @@ export interface MealIdea {
 
 export type Intensity = "легкая" | "средняя" | "тяжелая";
 
+export type MuscleGroup =
+  | "chest"
+  | "back"
+  | "shoulders"
+  | "biceps"
+  | "triceps"
+  | "legs"
+  | "glutes"
+  | "calves"
+  | "core"
+  | "cardio";
+
+/** Упражнение каталога. */
+export interface Exercise {
+  id: string;
+  name: string;
+  group: MuscleGroup;
+}
+
 /** Слот программы: упражнение + интенсивность + подходы × рекомендуемые повторы. */
 export interface ProgramSlot {
   exerciseId: string;
@@ -89,11 +108,27 @@ export interface ProgramSlot {
   repsMax: number;
 }
 
-/** Программный день: 1 | 2 — неделя цикла, weekday — 1=пн … 5=пт. */
+/** Программный день: week — неделя цикла (с 1), weekday — 0=вс … 6=сб. */
 export interface ProgramDay {
-  week: 1 | 2;
+  week: number;
   weekday: number;
   slots: ProgramSlot[];
+}
+
+/** Программа тренировок: цикл из 1–2 недель. */
+export interface WorkoutProgram {
+  id: string;
+  name: string;
+  description?: string;
+  weeks: number;
+  days: ProgramDay[];
+  builtin?: boolean;
+}
+
+/** Активная программа: id + понедельник первой недели цикла (для чётности). */
+export interface ActiveProgram {
+  id: string;
+  anchor: string; // YYYY-MM-DD, понедельник
 }
 
 export interface WorkoutSetLog {
@@ -110,7 +145,7 @@ export interface WorkoutExerciseLog {
 /** Лог тренировки за дату. */
 export interface WorkoutLog {
   date: string;
-  week: 1 | 2;
+  week: number;
   weekday: number;
   startedAt: string;
   finishedAt?: string;
@@ -137,4 +172,6 @@ export interface BackupFile {
   days: Record<string, DayLog>;
   customFoods?: CustomFood[];
   workouts?: Record<string, WorkoutLog>;
+  customPrograms?: WorkoutProgram[];
+  activeProgram?: ActiveProgram;
 }

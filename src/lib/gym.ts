@@ -1,12 +1,5 @@
-import type { WorkoutLog, WorkoutSetLog } from "../types";
+import type { ActiveProgram, WorkoutLog, WorkoutProgram, WorkoutSetLog } from "../types";
 import { daysBetween, dayOfWeek, dstr } from "./date";
-import { GYM_WEEKDAYS } from "../constants/program";
-
-/**
- * Якорь чередования недель: понедельник 2026-06-08 — начало недели «8»
- * (второй недели цикла). От него считаем чётность для любой даты.
- */
-const WEEK2_MONDAY = "2026-06-08";
 
 /** Понедельник недели, в которую попадает дата. */
 export function mondayOf(date: string): string {
@@ -16,20 +9,24 @@ export function mondayOf(date: string): string {
   return dstr(d);
 }
 
-/** Какая неделя цикла (1 | 2) идёт в дату. */
-export function programWeek(date: string): 1 | 2 {
-  const weeks = Math.round(daysBetween(WEEK2_MONDAY, mondayOf(date)) / 7);
-  return ((weeks % 2) + 2) % 2 === 0 ? 2 : 1;
+/** Неделя цикла программы (с 1) для даты, от якоря активной программы. */
+export function programWeekFor(date: string, active: ActiveProgram, weeks: number): number {
+  if (weeks <= 1) return 1;
+  const diff = Math.round(daysBetween(active.anchor, mondayOf(date)) / 7);
+  return ((diff % weeks) + weeks) % weeks + 1;
 }
 
-/** Тренировочный ли это день программы (пн/ср/пт). */
-export const isGymDay = (date: string) => GYM_WEEKDAYS.includes(dayOfWeek(date));
+/** Тренировочный ли это день для набора weekday-дней программы. */
+export const isGymDay = (date: string, weekdays: number[]) => weekdays.includes(dayOfWeek(date));
 
-/** Ближайший тренировочный день недели для даты (включая саму дату). */
-export function nearestGymWeekday(date: string): number {
-  const wd = dayOfWeek(date);
-  for (const g of GYM_WEEKDAYS) if (g >= wd) return g;
-  return GYM_WEEKDAYS[0];
+/** Ближайший тренировочный день недели (включая саму дату). */
+export function nearestGymWeekday(date: string, weekdays: number[]): number {
+  if (!weekdays.length) return dayOfWeek(date);
+  const order = (d: number) => (d + 6) % 7; // пн=0 … вс=6
+  const wd = order(dayOfWeek(date));
+  const sorted = [...weekdays].sort((a, b) => order(a) - order(b));
+  for (const g of sorted) if (order(g) >= wd) return g;
+  return sorted[0];
 }
 
 /** Последний записанный подход по упражнению среди прошлых тренировок (для подстановки веса). */
@@ -43,4 +40,14 @@ export function lastSetFor(workouts: Record<string, WorkoutLog>, exerciseId: str
     if (entry) return entry.sets[entry.sets.length - 1];
   }
   return null;
+}
+
+/** Пустая заготовка своей программы. */
+export function blankProgram(): WorkoutProgram {
+  return {
+    id: "custom-" + Date.now(),
+    name: "",
+    weeks: 1,
+    days: [{ week: 1, weekday: 1, slots: [] }],
+  };
 }

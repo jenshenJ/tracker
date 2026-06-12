@@ -26,6 +26,8 @@ export function BackupSection({ profile }: Props) {
         days: storage.allDays(),
         customFoods: storage.loadCustomFoods(),
         workouts: storage.loadWorkouts(),
+        customPrograms: storage.loadCustomPrograms(),
+        activeProgram: storage.loadActiveProgram(),
       };
       const blob = new Blob([JSON.stringify(out, null, 2)], { type: "application/json" });
       const a = document.createElement("a");
@@ -54,6 +56,8 @@ export function BackupSection({ profile }: Props) {
       if (typeof data.pantry === "string") storage.savePantry(data.pantry);
       if (Array.isArray(data.customFoods)) storage.saveCustomFoods(data.customFoods);
       if (data.workouts) storage.saveWorkouts(data.workouts);
+      if (Array.isArray(data.customPrograms)) storage.saveCustomPrograms(data.customPrograms);
+      if (data.activeProgram) storage.saveActiveProgram(data.activeProgram);
       for (const [k, v] of Object.entries(data.days ?? {})) storage.saveDayRaw(k, v);
       setMsg("Данные восстановлены. Перезагружаю…");
       setTimeout(() => window.location.reload(), 800);

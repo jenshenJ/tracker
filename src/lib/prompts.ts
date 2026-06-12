@@ -17,6 +17,29 @@ export function foodSearchPrompt(query: string): string {
   );
 }
 
+/** Анкета AI-конструктора программ. */
+export interface ProgramWizardAnswers {
+  goal: string; // цель тренировок
+  level: string; // опыт
+  daysPerWeek: number;
+  equipment: string;
+  restrictions: string; // ограничения, свободный текст
+}
+
+/** Промпт AI-конструктора программы тренировок. catalogList — строки "id — название". */
+export function programBuilderPrompt(a: ProgramWizardAnswers, catalogList: string): string {
+  return (
+    `Ты тренер. Составь программу тренировок в зале.\n` +
+    `Цель: ${a.goal}. Опыт: ${a.level}. Дней в неделю: ${a.daysPerWeek}. Оборудование: ${a.equipment}.` +
+    (a.restrictions.trim() ? ` Ограничения: ${a.restrictions.trim()}.` : "") +
+    `\nИспользуй ТОЛЬКО упражнения из каталога (указывай exerciseId точно):\n${catalogList}\n` +
+    `Дни недели: 1=пн 2=вт 3=ср 4=чт 5=пт 6=сб 0=вс. Распредели тренировки равномерно. ` +
+    `weeks: 1 (или 2, если есть смысл чередовать недели). 4-7 упражнений в день, intensity одно из: "легкая","средняя","тяжелая".\n` +
+    `Верни ТОЛЬКО валидный JSON-объект без markdown:\n` +
+    `{"name":"короткое название","weeks":1,"days":[{"week":1,"weekday":1,"slots":[{"exerciseId":"bench0","intensity":"средняя","sets":4,"repsMin":8,"repsMax":12}]}]}`
+  );
+}
+
 /** Промпт AI-повара под остаток КБЖУ и график тренировок. */
 export function chefPrompt(profile: Profile, day: DayLog, totals: Totals, pantry: string): string {
   const leftKcal = Math.max(0, Math.round(profile.kcalTarget - totals.kcal));
