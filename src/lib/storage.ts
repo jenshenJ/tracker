@@ -59,7 +59,16 @@ export const storage = {
   loadCustomFoods: (): CustomFood[] => read<CustomFood[]>("customFoods", []),
   saveCustomFoods: (foods: CustomFood[]) => write("customFoods", foods),
 
-  loadWorkouts: (): Record<string, WorkoutLog> => read<Record<string, WorkoutLog>>("workouts", {}),
+  /** Тренировки по id. Старые данные были по дате — мигрируем: ключ-дата становится id. */
+  loadWorkouts(): Record<string, WorkoutLog> {
+    const raw = read<Record<string, WorkoutLog>>("workouts", {});
+    const out: Record<string, WorkoutLog> = {};
+    for (const [key, w] of Object.entries(raw)) {
+      const id = w.id ?? key;
+      out[id] = { ...w, id };
+    }
+    return out;
+  },
   saveWorkouts: (w: Record<string, WorkoutLog>) => write("workouts", w),
 
   loadCustomPrograms: (): WorkoutProgram[] => read<WorkoutProgram[]>("customPrograms", []),

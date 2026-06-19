@@ -29,17 +29,44 @@ export function nearestGymWeekday(date: string, weekdays: number[]): number {
   return sorted[0];
 }
 
+/** Тренировки строго раньше даты, по убыванию даты (для поиска прошлых результатов). */
+function priorWorkouts(workouts: Record<string, WorkoutLog>, beforeDate: string): WorkoutLog[] {
+  return Object.values(workouts)
+    .filter((w) => w.date < beforeDate)
+    .sort((a, b) => b.date.localeCompare(a.date) || (b.startedAt ?? "").localeCompare(a.startedAt ?? ""));
+}
+
 /** Последний записанный подход по упражнению среди прошлых тренировок (для подстановки веса). */
 export function lastSetFor(workouts: Record<string, WorkoutLog>, exerciseId: string, beforeDate: string): WorkoutSetLog | null {
-  const dates = Object.keys(workouts)
-    .filter((d) => d < beforeDate)
-    .sort()
-    .reverse();
-  for (const d of dates) {
-    const entry = workouts[d].entries.find((e) => e.exerciseId === exerciseId && e.sets.length > 0);
+  for (const w of priorWorkouts(workouts, beforeDate)) {
+    const entry = w.entries.find((e) => e.exerciseId === exerciseId && e.sets.length > 0);
     if (entry) return entry.sets[entry.sets.length - 1];
   }
   return null;
+}
+
+/** Подходы упражнения из самой свежей прошлой тренировки (для подсказки «прошлый раз»). */
+export function lastWorkoutSetsFor(
+  workouts: Record<string, WorkoutLog>,
+  exerciseId: string,
+  beforeDate: string
+): WorkoutSetLog[] | null {
+  for (const w of priorWorkouts(workouts, beforeDate)) {
+    const entry = w.entries.find((e) => e.exerciseId === exerciseId && e.sets.length > 0);
+    if (entry) return entry.sets;
+  }
+  return null;
+}
+
+/** Рабочий подход прошлой тренировки — самый тяжёлый (для подстановки в поля по умолчанию). */
+export function workingSetFor(
+  workouts: Record<string, WorkoutLog>,
+  exerciseId: string,
+  beforeDate: string
+): WorkoutSetLog | null {
+  const sets = lastWorkoutSetsFor(workouts, exerciseId, beforeDate);
+  if (!sets || sets.length === 0) return null;
+  return sets.reduce((a, b) => (b.weight > a.weight ? b : a));
 }
 
 /** Человеко-читаемая длительность: 45 → "45 сек", 900 → "15 мин". */
