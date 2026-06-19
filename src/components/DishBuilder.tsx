@@ -1,10 +1,10 @@
 import { useMemo, useState } from "react";
 import { ChefHat, ChevronRight, Loader2, Plus, Search, Sparkles, X } from "lucide-react";
 import type { CustomFood, CustomFoodItem, FoodSearchResult } from "../types";
-import { FOOD_DB } from "../constants/foodDb";
-import { AiError, askAi, parseJsonArray } from "../lib/ai";
+import { AiError, askAi, cacheFoodSearch, cachedFoodSearch, parseJsonArray } from "../lib/ai";
 import { foodSearchPrompt } from "../lib/prompts";
 import { nextId } from "../lib/id";
+import { searchFoods } from "../lib/search";
 
 interface Props {
   /** Свои блюда — чтобы их тоже можно было класть в новое блюдо как ингредиент. */
@@ -36,23 +36,7 @@ export function DishBuilder({ customFoods, onSave, embedded }: Props) {
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError] = useState("");
 
-  const local = useMemo(() => {
-    const s = q.trim().toLowerCase();
-    if (s.length < 2) return [];
-    const own = customFoods
-      .filter((x) => x.name.toLowerCase().includes(s))
-      .map((x) => ({ name: x.name, kcal: x.kcal, p: x.p, f: x.f, c: x.c, portion: x.portion ?? 100, own: true }));
-    const builtin = FOOD_DB.filter((x) => x[0].toLowerCase().includes(s)).map(([n, kcal, p, f, c]) => ({
-      name: n,
-      kcal,
-      p,
-      f,
-      c,
-      portion: 100,
-      own: false,
-    }));
-    return [...own, ...builtin].slice(0, 6);
-  }, [q, customFoods]);
+  const local = useMemo(() => searchFoods(q, customFoods, 6), [q, customFoods]);
 
   const addIng = (i: Ing) => {
     setItems((prev) => [...prev, i]);
@@ -62,13 +46,22 @@ export function DishBuilder({ customFoods, onSave, embedded }: Props) {
   };
 
   const aiSearch = async () => {
-    if (q.trim().length < 2) return;
+    const query = q.trim();
+    if (query.length < 2) return;
+    const cached = cachedFoodSearch(query);
+    if (cached) {
+      setAiResults(cached);
+      setAiError("");
+      return;
+    }
     setAiLoading(true);
     setAiError("");
     setAiResults(null);
     try {
-      const text = await askAi(foodSearchPrompt(q.trim()), 1000);
-      setAiResults(parseJsonArray<FoodSearchResult>(text));
+      const text = await askAi(foodSearchPrompt(query), 1000, { fast: true });
+      const results = parseJsonArray<FoodSearchResult>(text);
+      setAiResults(results);
+      cacheFoodSearch(query, results);
     } catch (e) {
       console.error(e);
       setAiError(e instanceof AiError ? e.message : "Не получилось распознать. Попробуйте переформулировать.");
@@ -204,7 +197,7 @@ export function DishBuilder({ customFoods, onSave, embedded }: Props) {
               {local.map((r, i) => (
                 <li key={i} className="border-b border-line first:border-t">
                   <button
-                    onClick={() => addIng({ name: r.name, kcal: r.kcal, p: r.p, f: r.f, c: r.c, grams: r.portion })}
+                    onClick={() => addIng({ name: r.name, kcal: r.kcal, p: r.p, f: r.f, c: r.c, grams: r.portion ?? 100 })}
                     className="w-full text-left py-2.5 cursor-pointer flex justify-between items-baseline gap-3 hover:text-accent transition-colors"
                   >
                     <span className="text-sm truncate">

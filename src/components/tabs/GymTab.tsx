@@ -1,16 +1,17 @@
 import { useEffect, useState } from "react";
-import { ArrowLeftRight, Check, ChevronRight, Play, Plus, RotateCcw, Search, Settings2, SkipForward, Timer, Trash2, X } from "lucide-react";
+import { ArrowLeftRight, Check, ChevronRight, LineChart, Play, Plus, RotateCcw, Search, Settings2, SkipForward, Timer, Trash2, X } from "lucide-react";
 import type { ActiveProgram, DayLog, MuscleGroup, ProgramSlot, WorkoutExerciseLog, WorkoutLog, WorkoutProgram } from "../../types";
 import { EXERCISE_CATALOG, GROUP_LABEL, exerciseGroup, exerciseMeasure, exerciseName } from "../../constants/exercises";
 import { BUILTIN_PROGRAMS, findBuiltin, findProgramDay, programWeekdays } from "../../constants/programs";
 import { RU_DAYS, fmtDate, todayStr } from "../../lib/date";
-import { blankProgram, isGymDay, lastWorkoutSetsFor, mondayOf, nearestGymWeekday, programWeekFor, timeTarget, workingSetFor } from "../../lib/gym";
+import { blankProgram, isGymDay, lastWorkoutSetsFor, mondayOf, nearestGymWeekday, progressSeries, programWeekFor, timeTarget, workingSetFor } from "../../lib/gym";
 import { nextId } from "../../lib/id";
 import { storage } from "../../lib/storage";
 import { ExerciseIcon } from "../ExerciseIcons";
 import { AiProgramBuilder } from "../gym/AiProgramBuilder";
 import { ProgramEditor } from "../gym/ProgramEditor";
 import { ProgramManager } from "../gym/ProgramManager";
+import { ProgressView, Sparkline } from "../gym/Progress";
 
 interface Props {
   date: string;
@@ -18,7 +19,7 @@ interface Props {
   saveDay: (d: DayLog) => void;
 }
 
-type View = "main" | "programs" | "editor" | "ai";
+type View = "main" | "programs" | "editor" | "ai" | "progress";
 
 const INTENSITY_STYLE: Record<string, string> = {
   легкая: "text-dim",
@@ -70,6 +71,10 @@ export function GymTab({ date, day, saveDay }: Props) {
   const [picker, setPicker] = useState<{ mode: "swap" | "add"; index: number; live?: boolean } | null>(null);
   const [pickQ, setPickQ] = useState("");
   const [pickGroup, setPickGroup] = useState<MuscleGroup | null>(null);
+  /** какой слот плана сейчас редактируем (подходы/повторы); -1 — никакой */
+  const [editIdx, setEditIdx] = useState(-1);
+  /** единицы ввода для временных слотов: индекс → сек|мин */
+  const [editUnits, setEditUnits] = useState<Record<number, "s" | "m">>({});
 
   const program: WorkoutProgram =
     customPrograms.find((p) => p.id === active.id) ?? findBuiltin(active.id) ?? BUILTIN_PROGRAMS[0];
@@ -182,17 +187,26 @@ export function GymTab({ date, day, saveDay }: Props) {
       entries: slots.map((s) => ({ exerciseId: s.exerciseId, skipped: false, sets: [] })),
     });
     setDrafts({});
-    setFocusId(slots[0].exerciseId); // закрепляем фокус на первом — без автоперехода вперёд
+    setFocusId(slots[0].exerciseId);
     setPlan(null);
     setPicker(null);
+    setEditIdx(-1);
+  };
+
+  /** После записи подхода: добили цель — уходим к следующему; иначе остаёмся на упражнении. */
+  const afterSet = (id: string, newCount: number, target: number) => {
+    if (newCount >= target) advanceFrom(id);
+    else setFocusId(id);
   };
 
   const addSet = () => {
     if (!currentSlot || !log) return;
     const id = currentSlot.exerciseId;
+    const target = currentSlot.sets;
     const wv = parseFloat(inputW.replace(",", "."));
     const rv = parseInt(inputR);
     if (!wv || !rv) return;
+    const newCount = (entryOf(id)?.sets.length ?? 0) + 1;
     saveLog({
       ...log,
       entries: log.entries.map((e) => (e.exerciseId === id ? { ...e, sets: [...e.sets, { weight: wv, reps: rv }] } : e)),
@@ -200,21 +214,23 @@ export function GymTab({ date, day, saveDay }: Props) {
       setStartedAt: undefined,
     });
     setDrafts((d) => ({ ...d, [id]: {} }));
-    setFocusId(id); // не автопереходим — пользователь сам решает, делать ли ещё подход
+    afterSet(id, newCount, target);
   };
 
   /** стоп таймерного подхода: записываем длительность */
   const stopTimedSet = () => {
     if (!currentSlot || !log || setStart === null) return;
     const id = currentSlot.exerciseId;
+    const target = currentSlot.sets;
     const seconds = Math.max(1, Math.round((nowMs() - setStart) / 1000));
+    const newCount = (entryOf(id)?.sets.length ?? 0) + 1;
     saveLog({
       ...log,
       entries: log.entries.map((e) => (e.exerciseId === id ? { ...e, sets: [...e.sets, { weight: 0, reps: 0, seconds }] } : e)),
       restStartedAt: nowMs(),
       setStartedAt: undefined,
     });
-    setFocusId(id);
+    afterSet(id, newCount, target);
   };
 
   const finish = () => {
@@ -235,7 +251,18 @@ export function GymTab({ date, day, saveDay }: Props) {
 
   const editPlan = (slots: ProgramSlot[]) => setPlan({ key: planKey, slots });
 
-  const removeSlot = (index: number) => editPlan(planSlots.filter((_, i) => i !== index));
+  const setPlanSlot = (index: number, fn: (s: ProgramSlot) => ProgramSlot) =>
+    editPlan(planSlots.map((s, i) => (i === index ? fn(s) : s)));
+
+  /* единицы ввода для слотов по времени (сек/мин), с конвертацией в секунды */
+  const slotUnit = (i: number, s: ProgramSlot): "s" | "m" => editUnits[i] ?? (s.repsMax >= 120 ? "m" : "s");
+  const fromSec = (v: number, u: "s" | "m") => (u === "m" ? Math.round(v / 60) : v);
+  const toSec = (v: number, u: "s" | "m") => (u === "m" ? v * 60 : v);
+
+  const removeSlot = (index: number) => {
+    editPlan(planSlots.filter((_, i) => i !== index));
+    setEditIdx(-1);
+  };
 
   const swapExercise = (index: number, newId: string) => {
     editPlan(
@@ -437,6 +464,8 @@ export function GymTab({ date, day, saveDay }: Props) {
       />
     );
 
+  if (view === "progress") return <ProgressView workouts={workouts} onClose={() => setView("main")} />;
+
   const allDone =
     !!log &&
     sessionSlots.length > 0 &&
@@ -537,9 +566,17 @@ export function GymTab({ date, day, saveDay }: Props) {
 
             {(() => {
               const prev = lastWorkoutSetsFor(workouts, currentSlot.exerciseId, date);
-              return prev ? (
-                <div className="text-xs text-dim mt-3">прошлый раз: {prev.map(setChip).join(" · ")}</div>
-              ) : null;
+              if (!prev) return null;
+              const isTime = exerciseMeasure(currentSlot.exerciseId) === "time";
+              const trend = progressSeries(workouts, currentSlot.exerciseId, isTime ? "time" : "e1rm")
+                .filter((p) => p.date < date)
+                .map((p) => p.value);
+              return (
+                <div className="text-xs text-dim mt-3 flex items-center">
+                  прошлый раз: {prev.map(setChip).join(" · ")}
+                  <Sparkline values={trend} />
+                </div>
+              );
             })()}
 
             {curEntry.sets.length > 0 && (
@@ -702,12 +739,21 @@ export function GymTab({ date, day, saveDay }: Props) {
           <div className="eyebrow">
             Зал{program.weeks > 1 ? ` · неделя ${week}` : ""}
           </div>
-          <button
-            onClick={() => setView("programs")}
-            className="text-xs text-muted hover:text-fg cursor-pointer flex items-center gap-1.5"
-          >
-            <Settings2 className="w-3.5 h-3.5" /> {program.name}
-          </button>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setView("progress")}
+              className="text-xs text-muted hover:text-fg cursor-pointer flex items-center gap-1.5"
+              aria-label="Прогресс по упражнениям"
+            >
+              <LineChart className="w-3.5 h-3.5" /> Прогресс
+            </button>
+            <button
+              onClick={() => setView("programs")}
+              className="text-xs text-muted hover:text-fg cursor-pointer flex items-center gap-1.5"
+            >
+              <Settings2 className="w-3.5 h-3.5" /> {program.name}
+            </button>
+          </div>
         </div>
         {!isGymDay(date, weekdays) && !log && <p className="text-xs text-dim mt-1">сегодня по программе отдых</p>}
 
@@ -720,6 +766,7 @@ export function GymTab({ date, day, saveDay }: Props) {
                   onClick={() => {
                     setPick({ week, weekday: d });
                     setPicker(null);
+                    setEditIdx(-1);
                   }}
                   className={`rounded-full px-4 py-2 text-xs font-semibold uppercase cursor-pointer transition-colors duration-150 ${
                     weekday === d ? "bg-fg text-canvas" : "bg-surface text-dim hover:text-muted"
@@ -733,6 +780,7 @@ export function GymTab({ date, day, saveDay }: Props) {
                   onClick={() => {
                     setPick({ week: (week % program.weeks) + 1, weekday });
                     setPicker(null);
+                    setEditIdx(-1);
                   }}
                   className="ml-auto rounded-full px-4 py-2 text-xs font-semibold cursor-pointer bg-surface text-dim hover:text-muted transition-colors duration-150"
                   aria-label="Переключить неделю программы"
@@ -753,11 +801,16 @@ export function GymTab({ date, day, saveDay }: Props) {
                           <div className="text-sm truncate">{exerciseName(s.exerciseId)}</div>
                           <div className={`text-xs ${INTENSITY_STYLE[s.intensity]}`}>{s.intensity}</div>
                         </div>
-                        <div className="disp text-sm text-muted shrink-0">
+                        <button
+                          onClick={() => setEditIdx(editIdx === i ? -1 : i)}
+                          className={`disp text-sm shrink-0 cursor-pointer ${editIdx === i ? "text-accent" : "text-muted hover:text-fg"}`}
+                          aria-label={`Изменить подходы и повторы: ${exerciseName(s.exerciseId)}`}
+                          aria-expanded={editIdx === i}
+                        >
                           {exerciseMeasure(s.exerciseId) === "time"
                             ? `${s.sets > 1 ? `${s.sets}× ` : ""}${timeTarget(s.repsMin, s.repsMax)}`
                             : `${s.sets}×${s.repsMin}–${s.repsMax}`}
-                        </div>
+                        </button>
                         <button
                           onClick={() => (picker?.mode === "swap" && picker.index === i ? setPicker(null) : openSwap(i, s.exerciseId))}
                           className={`cursor-pointer p-1.5 shrink-0 ${
@@ -775,6 +828,70 @@ export function GymTab({ date, day, saveDay }: Props) {
                           <X className="w-4 h-4" />
                         </button>
                       </div>
+
+                      {editIdx === i &&
+                        (() => {
+                          const isTime = exerciseMeasure(s.exerciseId) === "time";
+                          const u = slotUnit(i, s);
+                          return (
+                            <div className="flex items-center gap-2 mt-2.5 ml-8 text-xs flex-wrap">
+                              <input
+                                type="number"
+                                inputMode="numeric"
+                                value={s.sets}
+                                onChange={(e) => setPlanSlot(i, (x) => ({ ...x, sets: Math.max(1, parseInt(e.target.value) || 1) }))}
+                                className="w-12 bg-surface rounded-lg px-2 py-1.5 text-center disp"
+                                aria-label="Подходы"
+                              />
+                              <span className="text-dim">×</span>
+                              <input
+                                type="number"
+                                inputMode="numeric"
+                                value={isTime ? fromSec(s.repsMin, u) : s.repsMin}
+                                onChange={(e) => {
+                                  const v = Math.max(1, parseInt(e.target.value) || 1);
+                                  setPlanSlot(i, (x) => ({ ...x, repsMin: isTime ? toSec(v, u) : v }));
+                                }}
+                                className="w-12 bg-surface rounded-lg px-2 py-1.5 text-center disp"
+                                aria-label="От"
+                              />
+                              <span className="text-dim">–</span>
+                              <input
+                                type="number"
+                                inputMode="numeric"
+                                value={isTime ? fromSec(s.repsMax, u) : s.repsMax}
+                                onChange={(e) => {
+                                  const v = Math.max(1, parseInt(e.target.value) || 1);
+                                  setPlanSlot(i, (x) => ({ ...x, repsMax: isTime ? toSec(v, u) : v }));
+                                }}
+                                className="w-12 bg-surface rounded-lg px-2 py-1.5 text-center disp"
+                                aria-label="До"
+                              />
+                              {isTime ? (
+                                <button
+                                  onClick={() => setEditUnits((m) => ({ ...m, [i]: u === "s" ? "m" : "s" }))}
+                                  className="bg-raised hover:bg-raised-hover rounded-lg px-2.5 py-1.5 cursor-pointer transition-colors duration-150 text-fg"
+                                  aria-label="Переключить единицы: секунды или минуты"
+                                >
+                                  {u === "m" ? "мин" : "сек"} ⇄
+                                </button>
+                              ) : (
+                                <span className="text-dim">повт</span>
+                              )}
+                              <select
+                                value={s.intensity}
+                                onChange={(e) => setPlanSlot(i, (x) => ({ ...x, intensity: e.target.value as ProgramSlot["intensity"] }))}
+                                className="bg-surface rounded-lg px-2 py-1.5 flex-1 min-w-0"
+                                aria-label="Интенсивность"
+                              >
+                                {(["легкая", "средняя", "тяжелая"] as const).map((x) => (
+                                  <option key={x}>{x}</option>
+                                ))}
+                              </select>
+                            </div>
+                          );
+                        })()}
+
                       {picker?.mode === "swap" && picker.index === i && pickerBlock}
                     </li>
                   ))}
@@ -812,11 +929,6 @@ export function GymTab({ date, day, saveDay }: Props) {
                   </button>
                 ) : (
                   <p className="text-sm text-dim mt-6">Добавьте хотя бы одно упражнение, чтобы начать.</p>
-                )}
-                {doneToday > 0 && (
-                  <p className="text-xs text-dim mt-2 text-center">
-                    сегодня уже {doneToday} {doneToday === 1 ? "тренировка" : "тренировки"} — новая добавится отдельно
-                  </p>
                 )}
               </>
             ) : (

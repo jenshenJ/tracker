@@ -6,16 +6,39 @@
 export interface AiEnv {
   ANTHROPIC_API_KEY?: string;
   ANTHROPIC_MODEL?: string;
+  /** Быстрая/дешёвая модель для простых задач (поиск продукта). По умолчанию Haiku. */
+  ANTHROPIC_FAST_MODEL?: string;
   AI_API_KEY?: string;
   AI_BASE_URL?: string;
   AI_MODEL?: string;
+  /** Быстрая/дешёвая модель для простых задач (поиск продукта). */
+  AI_FAST_MODEL?: string;
+  /** Модель для запросов с картинкой (vision). */
+  AI_VISION_MODEL?: string;
   AI_REASONING_EFFORT?: string;
 }
 
 export const MAX_PROMPT_LENGTH = 6000;
 export const MAX_TOKENS_LIMIT = 2000;
+/** Лимит на base64-картинку (~3 МБ данных) — клиент шлёт уменьшенный JPEG. */
+export const MAX_IMAGE_BYTES = 3_000_000;
 
-async function callAnthropic(env: AiEnv, prompt: string, maxTokens: number): Promise<string> {
+/** Картинка для мультимодального запроса: base64 без data-URL-префикса. */
+export interface AiImage {
+  mediaType: string; // image/jpeg, image/png, image/webp
+  data: string; // base64
+}
+
+async function callAnthropic(env: AiEnv, prompt: string, maxTokens: number, fast: boolean, image?: AiImage): Promise<string> {
+  const model = fast
+    ? env.ANTHROPIC_FAST_MODEL ?? "claude-3-5-haiku-20241022"
+    : env.ANTHROPIC_MODEL ?? "claude-sonnet-4-20250514";
+  const content = image
+    ? [
+        { type: "image", source: { type: "base64", media_type: image.mediaType, data: image.data } },
+        { type: "text", text: prompt },
+      ]
+    : prompt;
   const r = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: {
@@ -24,9 +47,9 @@ async function callAnthropic(env: AiEnv, prompt: string, maxTokens: number): Pro
       "anthropic-version": "2023-06-01",
     },
     body: JSON.stringify({
-      model: env.ANTHROPIC_MODEL ?? "claude-sonnet-4-20250514",
+      model,
       max_tokens: maxTokens,
-      messages: [{ role: "user", content: prompt }],
+      messages: [{ role: "user", content }],
     }),
   });
   if (!r.ok) throw new Error(`anthropic ${r.status}: ${await r.text().catch(() => "")}`);
@@ -37,14 +60,27 @@ async function callAnthropic(env: AiEnv, prompt: string, maxTokens: number): Pro
     .join("\n");
 }
 
-async function callOpenAiCompatible(env: AiEnv, prompt: string, maxTokens: number): Promise<string> {
+async function callOpenAiCompatible(env: AiEnv, prompt: string, maxTokens: number, fast: boolean, image?: AiImage): Promise<string> {
   const base = (env.AI_BASE_URL ?? "https://openrouter.ai/api/v1").replace(/\/$/, "");
   const isGemini = base.includes("generativelanguage.googleapis.com");
+  /* выбор модели: картинка → vision-модель; fast → дешёвая; иначе основная */
+  const model = image
+    ? env.AI_VISION_MODEL ?? env.AI_MODEL ?? "gemini-3.5-flash"
+    : fast
+      ? env.AI_FAST_MODEL ?? env.AI_MODEL ?? "gemini-3.5-flash"
+      : env.AI_MODEL ?? "gemini-3.5-flash";
+  const content = image
+    ? [
+        { type: "text", text: prompt },
+        { type: "image_url", image_url: { url: `data:${image.mediaType};base64,${image.data}` } },
+      ]
+    : prompt;
   const body: Record<string, unknown> = {
-    model: env.AI_MODEL ?? "gemini-3.5-flash",
-    /* у «думающих» моделей reasoning-токены съедают max_tokens — даём запас */
-    max_tokens: Math.max(maxTokens * 4, 6000),
-    messages: [{ role: "user", content: prompt }],
+    model,
+    /* у «думающих» моделей (Gemini) reasoning-токены съедают бюджет — даём запас;
+       для остальных (Groq и т.п.) берём запрошенный лимит, иначе упираемся в TPM */
+    max_tokens: isGemini ? Math.max(maxTokens * 4, 6000) : maxTokens,
+    messages: [{ role: "user", content }],
   };
   if (isGemini) body.reasoning_effort = env.AI_REASONING_EFFORT ?? "low";
 
@@ -61,11 +97,21 @@ async function callOpenAiCompatible(env: AiEnv, prompt: string, maxTokens: numbe
 /** true, если хоть один провайдер настроен. */
 export const aiConfigured = (env: AiEnv) => !!(env.ANTHROPIC_API_KEY || env.AI_API_KEY);
 
-/** Прогоняет промпт через настроенный провайдер. Бросает Error при сбое. */
-export async function runAi(env: AiEnv, prompt: string, maxTokens: number): Promise<string> {
+/** Прогоняет промпт через настроенный провайдер. fast — быстрая модель. image — мультимодальный ввод. Бросает Error при сбое. */
+export async function runAi(env: AiEnv, prompt: string, maxTokens: number, fast = false, image?: AiImage): Promise<string> {
   const text = env.ANTHROPIC_API_KEY
-    ? await callAnthropic(env, prompt, maxTokens)
-    : await callOpenAiCompatible(env, prompt, maxTokens);
+    ? await callAnthropic(env, prompt, maxTokens, fast, image)
+    : await callOpenAiCompatible(env, prompt, maxTokens, fast, image);
   if (!text.trim()) throw new Error("empty response");
   return text;
+}
+
+/** Валидация картинки из тела запроса. Возвращает AiImage или null (если картинки нет/некорректна). */
+export function parseImage(raw: unknown): AiImage | null {
+  if (!raw || typeof raw !== "object") return null;
+  const img = raw as { mediaType?: unknown; data?: unknown };
+  if (typeof img.mediaType !== "string" || typeof img.data !== "string") return null;
+  if (!/^image\/(jpeg|png|webp)$/.test(img.mediaType)) return null;
+  if (!img.data || img.data.length > MAX_IMAGE_BYTES) return null;
+  return { mediaType: img.mediaType, data: img.data };
 }

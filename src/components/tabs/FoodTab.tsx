@@ -1,14 +1,16 @@
 import { useMemo, useState } from "react";
-import { Loader2, Search, Sparkles, Trash2, X } from "lucide-react";
+import { Camera, Loader2, ScanLine, Search, Sparkles, Trash2, X } from "lucide-react";
 import type { CustomFood, DayLog, FoodEntry, FoodSearchResult, Meal, Profile, Totals } from "../../types";
 import { MEALS, defaultMeal } from "../../constants";
-import { FOOD_DB } from "../../constants/foodDb";
-import { AiError, askAi, parseJsonArray } from "../../lib/ai";
+import { AiError, askAi, cacheFoodSearch, cachedFoodSearch, parseJsonArray } from "../../lib/ai";
 import { foodSearchPrompt } from "../../lib/prompts";
 import { nextId } from "../../lib/id";
 import { storage } from "../../lib/storage";
 import { upsertLoggedFoods, type QuickFood } from "../../lib/foods";
+import { searchFoods } from "../../lib/search";
 import { AiChef } from "../AiChef";
+import { BarcodeScanner } from "../BarcodeScanner";
+import { PhotoFood } from "../PhotoFood";
 import { CustomFoodForm } from "../CustomFoodForm";
 import { RecentFoods } from "../RecentFoods";
 
@@ -36,6 +38,8 @@ export function FoodTab({ day, saveDay, totals, profile }: Props) {
   const [grams, setGrams] = useState("");
   const [meal, setMeal] = useState<Meal>(defaultMeal());
   const [customFoods, setCustomFoods] = useState<CustomFood[]>(() => storage.loadCustomFoods());
+  const [showScanner, setShowScanner] = useState(false);
+  const [showPhoto, setShowPhoto] = useState(false);
 
   const saveCustomFood = (food: CustomFood) => {
     const next = [food, ...customFoods];
@@ -72,33 +76,26 @@ export function FoodTab({ day, saveDay, totals, profile }: Props) {
     storage.saveCustomFoods(next);
   };
 
-  /* поиск: сначала свои блюда, затем встроенная база */
-  const local = useMemo(() => {
-    const s = q.trim().toLowerCase();
-    if (s.length < 2) return [];
-    const own = customFoods
-      .filter((x) => x.name.toLowerCase().includes(s))
-      .map((x) => ({ id: x.id as number | null, name: x.name, kcal: x.kcal, p: x.p, f: x.f, c: x.c, portion: x.portion }));
-    const builtin = FOOD_DB.filter((x) => x[0].toLowerCase().includes(s)).map(([name, kcal, p, f, c]) => ({
-      id: null as number | null,
-      name,
-      kcal,
-      p,
-      f,
-      c,
-      portion: undefined as number | undefined,
-    }));
-    return [...own, ...builtin].slice(0, 7);
-  }, [q, customFoods]);
+  /* умный локальный поиск: свои блюда + встроенная база, нечёткое совпадение и ранжирование */
+  const local = useMemo(() => searchFoods(q, customFoods, 8), [q, customFoods]);
 
   const aiSearch = async () => {
-    if (q.trim().length < 2) return;
+    const query = q.trim();
+    if (query.length < 2) return;
+    const cached = cachedFoodSearch(query);
+    if (cached) {
+      setAiResults(cached);
+      setAiError("");
+      return;
+    }
     setAiLoading(true);
     setAiError("");
     setAiResults(null);
     try {
-      const text = await askAi(foodSearchPrompt(q.trim()), 1000);
-      setAiResults(parseJsonArray<FoodSearchResult>(text));
+      const text = await askAi(foodSearchPrompt(query), 1000, { fast: true });
+      const results = parseJsonArray<FoodSearchResult>(text);
+      setAiResults(results);
+      cacheFoodSearch(query, results);
     } catch (e) {
       console.error(e);
       setAiError(e instanceof AiError ? e.message : "Не получилось распознать. Попробуйте переформулировать запрос.");
@@ -168,6 +165,22 @@ export function FoodTab({ day, saveDay, totals, profile }: Props) {
               className="w-full bg-surface rounded-full pl-11 pr-4 py-3 text-base"
             />
           </div>
+          <button
+            onClick={() => setShowPhoto(true)}
+            className="bg-surface hover:bg-raised-hover transition-all duration-150 rounded-full px-4 cursor-pointer flex items-center shrink-0"
+            aria-label="Распознать еду по фото"
+            title="Еда по фото"
+          >
+            <Camera className="w-5 h-5 text-accent" strokeWidth={1.8} />
+          </button>
+          <button
+            onClick={() => setShowScanner(true)}
+            className="bg-surface hover:bg-raised-hover transition-all duration-150 rounded-full px-4 cursor-pointer flex items-center shrink-0"
+            aria-label="Сканировать штрихкод"
+            title="Сканировать штрихкод"
+          >
+            <ScanLine className="w-5 h-5 text-accent" strokeWidth={1.8} />
+          </button>
           <button
             onClick={aiSearch}
             disabled={aiLoading}
@@ -338,6 +351,28 @@ export function FoodTab({ day, saveDay, totals, profile }: Props) {
           </div>
         ))}
       </section>
+
+      {showPhoto && (
+        <PhotoFood
+          onConfirm={(entries) => {
+            logEntries(entries);
+            setShowPhoto(false);
+            window.scrollTo({ top: 0, behavior: "smooth" });
+          }}
+          onClose={() => setShowPhoto(false)}
+        />
+      )}
+
+      {showScanner && (
+        <BarcodeScanner
+          onPicked={(r) => {
+            pick(r.name, r.kcal, r.p, r.f, r.c, r.portion);
+            setShowScanner(false);
+            window.scrollTo({ top: 0, behavior: "smooth" });
+          }}
+          onClose={() => setShowScanner(false)}
+        />
+      )}
     </div>
   );
 }

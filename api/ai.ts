@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { MAX_PROMPT_LENGTH, MAX_TOKENS_LIMIT, aiConfigured, runAi } from "./_core.js";
+import { MAX_PROMPT_LENGTH, MAX_TOKENS_LIMIT, aiConfigured, parseImage, runAi } from "./_core.js";
 
 /**
  * Прокси к LLM. Провайдер настраивается env-переменными на Vercel:
@@ -20,14 +20,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(500).json({ error: "AI не настроен: добавьте ANTHROPIC_API_KEY или AI_API_KEY в переменные Vercel." });
   }
 
-  const { prompt, maxTokens } = (req.body ?? {}) as { prompt?: unknown; maxTokens?: unknown };
+  const { prompt, maxTokens, fast, image } = (req.body ?? {}) as {
+    prompt?: unknown;
+    maxTokens?: unknown;
+    fast?: unknown;
+    image?: unknown;
+  };
   if (typeof prompt !== "string" || !prompt.trim() || prompt.length > MAX_PROMPT_LENGTH) {
     return res.status(400).json({ error: "Некорректный запрос." });
   }
   const tokens = Math.min(typeof maxTokens === "number" && maxTokens > 0 ? maxTokens : 1000, MAX_TOKENS_LIMIT);
 
   try {
-    const text = await runAi(process.env, prompt, tokens);
+    const text = await runAi(process.env, prompt, tokens, fast === true, parseImage(image) ?? undefined);
     return res.status(200).json({ text });
   } catch (e) {
     console.error("AI proxy error", e);

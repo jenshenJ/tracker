@@ -6,6 +6,7 @@ import { dayOfWeek } from "../../lib/date";
 import { goalLineAt, lastKnownWeight } from "../../lib/stats";
 import { nextId } from "../../lib/id";
 import { Bar } from "../Bar";
+import { WeeklyInsights } from "../WeeklyInsights";
 
 interface Props {
   profile: Profile;
@@ -212,6 +213,9 @@ export function TodayTab({ profile, totals, day, saveDay, weights, saveWeights, 
           {profile.goal === "bulk" && `Профицит уже заложен в ${profile.kcalTarget} ккал — главное добирать белок и прогрессировать в весах.`}
         </p>
       </section>
+
+      {/* недельная сводка */}
+      <WeeklyInsights profile={profile} weights={weights} day={day} />
     </div>
   );
 }

@@ -69,6 +69,56 @@ export function workingSetFor(
   return sets.reduce((a, b) => (b.weight > a.weight ? b : a));
 }
 
+/* ── аналитика прогресса по упражнениям ── */
+
+/** Метрика динамики: оценка 1ПМ, рабочий вес, тоннаж, время (для упражнений на время). */
+export type ProgressMetric = "e1rm" | "top" | "volume" | "time";
+
+export interface ProgressPoint {
+  date: string;
+  value: number;
+}
+
+/** Оценка 1ПМ по Эпли. */
+const epley = (w: number, r: number) => (r <= 1 ? w : w * (1 + r / 30));
+
+/** Значение метрики за одну тренировку по набору подходов. */
+export function sessionMetric(sets: WorkoutSetLog[], metric: ProgressMetric): number | null {
+  if (!sets.length) return null;
+  switch (metric) {
+    case "top":
+      return Math.max(...sets.map((s) => s.weight));
+    case "e1rm":
+      return Math.max(...sets.map((s) => epley(s.weight, s.reps)));
+    case "volume":
+      return sets.reduce((a, s) => a + s.weight * s.reps, 0);
+    case "time":
+      return Math.max(...sets.map((s) => s.seconds ?? 0));
+  }
+}
+
+/** Ряд значений метрики по датам тренировок (по возрастанию даты). */
+export function progressSeries(
+  workouts: Record<string, WorkoutLog>,
+  exerciseId: string,
+  metric: ProgressMetric
+): ProgressPoint[] {
+  return Object.values(workouts)
+    .map((w) => {
+      const entry = w.entries.find((e) => e.exerciseId === exerciseId && !e.skipped && e.sets.length > 0);
+      return entry ? { date: w.date, value: sessionMetric(entry.sets, metric) } : null;
+    })
+    .filter((p): p is ProgressPoint => p != null && p.value != null)
+    .sort((a, b) => a.date.localeCompare(b.date));
+}
+
+/** Все упражнения, по которым есть хотя бы один записанный подход. */
+export function exercisesWithHistory(workouts: Record<string, WorkoutLog>): string[] {
+  const ids = new Set<string>();
+  for (const w of Object.values(workouts)) for (const e of w.entries) if (e.sets.length > 0) ids.add(e.exerciseId);
+  return [...ids];
+}
+
 /** Человеко-читаемая длительность: 45 → "45 сек", 900 → "15 мин". */
 export const fmtSeconds = (s: number) => (s < 120 ? `${s} сек` : `${Math.round(s / 60)} мин`);
 

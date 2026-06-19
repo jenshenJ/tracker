@@ -59,6 +59,10 @@ export const storage = {
   loadCustomFoods: (): CustomFood[] => read<CustomFood[]>("customFoods", []),
   saveCustomFoods: (foods: CustomFood[]) => write("customFoods", foods),
 
+  /** Выбранный период сводки (дней): 7 / 30 / 90. */
+  loadInsightsDays: (): number => read<number>("insightsDays", 7),
+  saveInsightsDays: (n: number) => write("insightsDays", n),
+
   /** Тренировки по id. Старые данные были по дате — мигрируем: ключ-дата становится id. */
   loadWorkouts(): Record<string, WorkoutLog> {
     const raw = read<Record<string, WorkoutLog>>("workouts", {});

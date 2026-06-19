@@ -1,14 +1,31 @@
 /** Клиент serverless-прокси /api/ai (ключ Anthropic живёт на сервере). */
 
+import type { FoodSearchResult } from "../types";
+import { normalize } from "./search";
+
 export class AiError extends Error {}
 
-export async function askAi(prompt: string, maxTokens = 1000): Promise<string> {
+/** Картинка для мультимодального запроса: base64 без data-URL-префикса. */
+export interface AiImage {
+  mediaType: string;
+  data: string;
+}
+
+/**
+ * opts.fast — быстрая модель (Haiku) для простых задач (поиск продукта).
+ * opts.image — картинка для распознавания (еда по фото); идёт на основную модель.
+ */
+export async function askAi(
+  prompt: string,
+  maxTokens = 1000,
+  opts?: { fast?: boolean; image?: AiImage },
+): Promise<string> {
   let res: Response;
   try {
     res = await fetch("/api/ai", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ prompt, maxTokens }),
+      body: JSON.stringify({ prompt, maxTokens, fast: opts?.fast === true, image: opts?.image }),
     });
   } catch {
     throw new AiError("Нет соединения с сервером. AI-функции работают только онлайн.");
@@ -19,6 +36,39 @@ export async function askAi(prompt: string, maxTokens = 1000): Promise<string> {
   }
   const { text } = (await res.json()) as { text: string };
   return text;
+}
+
+/* ── Кэш AI-поиска продуктов: одинаковые запросы отдаём мгновенно, без обращения к модели ── */
+
+const FOOD_CACHE_KEY = "t95:aiFoodCache";
+const FOOD_CACHE_MAX = 300;
+
+function readFoodCache(): Record<string, FoodSearchResult[]> {
+  try {
+    return JSON.parse(localStorage.getItem(FOOD_CACHE_KEY) ?? "{}") as Record<string, FoodSearchResult[]>;
+  } catch {
+    return {};
+  }
+}
+
+/** Результаты AI-поиска для запроса (нормализованного) или null. */
+export function cachedFoodSearch(query: string): FoodSearchResult[] | null {
+  const hit = readFoodCache()[normalize(query)];
+  return hit && hit.length ? hit : null;
+}
+
+/** Сохранить результаты AI-поиска по запросу (с ограничением размера кэша). */
+export function cacheFoodSearch(query: string, results: FoodSearchResult[]): void {
+  if (!results.length) return;
+  try {
+    const cache = readFoodCache();
+    cache[normalize(query)] = results;
+    const keys = Object.keys(cache);
+    if (keys.length > FOOD_CACHE_MAX) for (const k of keys.slice(0, keys.length - FOOD_CACHE_MAX)) delete cache[k];
+    localStorage.setItem(FOOD_CACHE_KEY, JSON.stringify(cache));
+  } catch (e) {
+    console.error("food cache write failed", e);
+  }
 }
 
 /** Достаёт JSON-массив из ответа модели (срезает ```json-обёртки, чинит обрезанный хвост). */

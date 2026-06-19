@@ -1,7 +1,7 @@
 import { defineConfig, loadEnv, type Plugin } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
-import { MAX_PROMPT_LENGTH, MAX_TOKENS_LIMIT, aiConfigured, runAi, type AiEnv } from "./api/_core.js";
+import { MAX_PROMPT_LENGTH, MAX_TOKENS_LIMIT, aiConfigured, parseImage, runAi, type AiEnv } from "./api/_core.js";
 
 /**
  * Dev-аналог Vercel-функции /api/ai: тот же код провайдеров (api/_core),
@@ -28,14 +28,19 @@ function devAiProxy(env: AiEnv): Plugin {
         req.on("end", () => {
           void (async () => {
             try {
-              const { prompt, maxTokens } = JSON.parse(body || "{}") as { prompt?: unknown; maxTokens?: unknown };
+              const { prompt, maxTokens, fast, image } = JSON.parse(body || "{}") as {
+                prompt?: unknown;
+                maxTokens?: unknown;
+                fast?: unknown;
+                image?: unknown;
+              };
               if (typeof prompt !== "string" || !prompt.trim() || prompt.length > MAX_PROMPT_LENGTH) {
                 res.statusCode = 400;
                 res.end(JSON.stringify({ error: "Некорректный запрос." }));
                 return;
               }
               const tokens = Math.min(typeof maxTokens === "number" && maxTokens > 0 ? maxTokens : 1000, MAX_TOKENS_LIMIT);
-              const text = await runAi(env, prompt, tokens);
+              const text = await runAi(env, prompt, tokens, fast === true, parseImage(image) ?? undefined);
               res.end(JSON.stringify({ text }));
             } catch (e) {
               console.error("[dev-ai-proxy]", e);
