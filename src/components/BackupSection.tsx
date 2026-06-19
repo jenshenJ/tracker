@@ -25,6 +25,7 @@ export function BackupSection({ profile }: Props) {
         pantry: storage.loadPantry(),
         days: storage.allDays(),
         customFoods: storage.loadCustomFoods(),
+        favoriteMeals: storage.loadFavoriteMeals(),
         workouts: storage.loadWorkouts(),
         customPrograms: storage.loadCustomPrograms(),
         activeProgram: storage.loadActiveProgram(),
@@ -55,6 +56,7 @@ export function BackupSection({ profile }: Props) {
       if (data.weights) storage.saveWeights(data.weights);
       if (typeof data.pantry === "string") storage.savePantry(data.pantry);
       if (Array.isArray(data.customFoods)) storage.saveCustomFoods(data.customFoods);
+      if (Array.isArray(data.favoriteMeals)) storage.saveFavoriteMeals(data.favoriteMeals);
       if (data.workouts) storage.saveWorkouts(data.workouts);
       if (Array.isArray(data.customPrograms)) storage.saveCustomPrograms(data.customPrograms);
       if (data.activeProgram) storage.saveActiveProgram(data.activeProgram);

@@ -1,4 +1,4 @@
-import type { ActiveProgram, CustomFood, DayLog, Profile, Weights, WorkoutLog, WorkoutProgram } from "../types";
+import type { ActiveProgram, CustomFood, DayLog, FavoriteMeal, Profile, Weights, WorkoutLog, WorkoutProgram } from "../types";
 import { DEFAULT_GOAL_HORIZON_DAYS, DEFAULT_SCHEDULE } from "../constants";
 import { addDays, todayStr } from "./date";
 import { recommendTargets } from "./targets";
@@ -58,6 +58,10 @@ export const storage = {
 
   loadCustomFoods: (): CustomFood[] => read<CustomFood[]>("customFoods", []),
   saveCustomFoods: (foods: CustomFood[]) => write("customFoods", foods),
+
+  /** Избранные приёмы пищи — типовые наборы продуктов для записи в один тап. */
+  loadFavoriteMeals: (): FavoriteMeal[] => read<FavoriteMeal[]>("favoriteMeals", []),
+  saveFavoriteMeals: (meals: FavoriteMeal[]) => write("favoriteMeals", meals),
 
   /** Выбранный период сводки (дней): 7 / 30 / 90. */
   loadInsightsDays: (): number => read<number>("insightsDays", 7),

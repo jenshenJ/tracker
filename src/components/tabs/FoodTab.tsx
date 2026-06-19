@@ -1,16 +1,21 @@
 import { useMemo, useState } from "react";
-import { Camera, ChefHat, ChevronRight, Loader2, NotebookPen, ScanLine, Search, Sparkles, Trash2, X } from "lucide-react";
-import type { CustomFood, DayLog, FoodEntry, FoodSearchResult, Meal, Profile, Totals } from "../../types";
+import { Camera, ChefHat, ChevronRight, Loader2, Mic, NotebookPen, Pencil, ScanLine, Search, Sparkles, Star, Trash2, X } from "lucide-react";
+import type { CustomFood, CustomFoodItem, DayLog, FavoriteMeal, FoodEntry, FoodSearchResult, Meal, Profile, Totals } from "../../types";
 import { MEALS, defaultMeal } from "../../constants";
 import { AiError, askAi, cacheFoodSearch, cachedFoodSearch, parseJsonArray } from "../../lib/ai";
 import { foodSearchPrompt } from "../../lib/prompts";
 import { nextId } from "../../lib/id";
 import { storage } from "../../lib/storage";
 import { upsertLoggedFoods, type QuickFood } from "../../lib/foods";
+import { favoriteFromEntries, favoriteSingle } from "../../lib/favorites";
 import { searchFoods } from "../../lib/search";
 import { AiChef } from "../AiChef";
+import { FavoriteMeals } from "../FavoriteMeals";
+import { FoodAmountSheet } from "../FoodAmountSheet";
+import { EditCustomFoodSheet } from "../EditCustomFoodSheet";
 import { BarcodeScanner } from "../BarcodeScanner";
 import { PhotoFood } from "../PhotoFood";
+import { VoiceFood } from "../VoiceFood";
 import { CustomFoodForm } from "../CustomFoodForm";
 import { RecentFoods } from "../RecentFoods";
 import { Sheet } from "../Sheet";
@@ -30,6 +35,18 @@ interface Picked {
   c: number;
 }
 
+/** Состояние модалки записи/правки одного продукта (КБЖУ хранится на 100 г). */
+interface AmountSheet {
+  mode: "add" | "edit";
+  title: string;
+  name: string;
+  per100: { kcal: number; p: number; f: number; c: number };
+  grams: number;
+  meal: Meal;
+  /** id записи дневника при mode==="edit". */
+  entryId?: number;
+}
+
 export function FoodTab({ day, saveDay, totals, profile }: Props) {
   const [q, setQ] = useState("");
   const [aiResults, setAiResults] = useState<FoodSearchResult[] | null>(null);
@@ -39,8 +56,15 @@ export function FoodTab({ day, saveDay, totals, profile }: Props) {
   const [grams, setGrams] = useState("");
   const [meal, setMeal] = useState<Meal>(defaultMeal());
   const [customFoods, setCustomFoods] = useState<CustomFood[]>(() => storage.loadCustomFoods());
+  const [favorites, setFavorites] = useState<FavoriteMeal[]>(() => storage.loadFavoriteMeals());
+  const [savingMeal, setSavingMeal] = useState<Meal | null>(null);
+  const [favName, setFavName] = useState("");
+  const [favSaved, setFavSaved] = useState(false);
+  const [amountSheet, setAmountSheet] = useState<AmountSheet | null>(null);
+  const [editFood, setEditFood] = useState<CustomFood | null>(null);
   const [showScanner, setShowScanner] = useState(false);
   const [showPhoto, setShowPhoto] = useState(false);
+  const [showVoice, setShowVoice] = useState(false);
   const [showCustom, setShowCustom] = useState(false);
   const [showChef, setShowChef] = useState(false);
 
@@ -67,12 +91,56 @@ export function FoodTab({ day, saveDay, totals, profile }: Props) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const days = useMemo(() => storage.allDays(), [day, customFoods]);
 
-  /* выбор недавнего/частого: открываем редактор с запомненным весом — вес можно изменить перед записью */
+  /* выбор недавнего/частого: модалка с запомненным весом — вес/приём можно изменить перед записью */
   const pickQuick = (q: QuickFood) => {
     const per = 100 / q.grams;
-    pick(q.name, q.kcal * per, q.p * per, q.f * per, q.c * per, q.grams);
-    setMeal(q.meal);
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    setAmountSheet({
+      mode: "add",
+      title: "Записать",
+      name: q.name,
+      per100: { kcal: q.kcal * per, p: q.p * per, f: q.f * per, c: q.c * per },
+      grams: q.grams,
+      meal: q.meal,
+    });
+  };
+
+  /* правка уже добавленной записи дневника: модалка граммовки/приёма */
+  const editEntry = (f: FoodEntry) => {
+    const per = 100 / (f.grams || 100);
+    setAmountSheet({
+      mode: "edit",
+      title: "Изменить запись",
+      name: f.name,
+      per100: { kcal: f.kcal * per, p: f.p * per, f: f.f * per, c: f.c * per },
+      grams: f.grams,
+      meal: f.meal,
+      entryId: f.id,
+    });
+  };
+
+  /* запись из модалки: новая запись (add) или обновление существующей (edit) */
+  const submitAmount = (grams: number, meal: Meal) => {
+    if (!amountSheet) return;
+    const k = grams / 100;
+    const per = amountSheet.per100;
+    const vals = { grams, kcal: per.kcal * k, p: per.p * k, f: per.f * k, c: per.c * k };
+    if (amountSheet.mode === "edit" && amountSheet.entryId != null) {
+      saveDay({
+        ...day,
+        foods: day.foods.map((x) => (x.id === amountSheet.entryId ? { ...x, meal, ...vals } : x)),
+      });
+    } else {
+      logEntries([{ id: nextId(), meal, name: amountSheet.name, ...vals }]);
+    }
+    setAmountSheet(null);
+  };
+
+  /* правка своего блюда в базе */
+  const saveEditedFood = (updated: CustomFood) => {
+    const next = customFoods.map((x) => (x.id === updated.id ? updated : x));
+    setCustomFoods(next);
+    storage.saveCustomFoods(next);
+    setEditFood(null);
   };
 
   const deleteCustomFood = (id: number) => {
@@ -80,6 +148,24 @@ export function FoodTab({ day, saveDay, totals, profile }: Props) {
     setCustomFoods(next);
     storage.saveCustomFoods(next);
   };
+
+  /* избранные приёмы пищи */
+  const persistFavorites = (next: FavoriteMeal[]) => {
+    setFavorites(next);
+    storage.saveFavoriteMeals(next);
+  };
+
+  const confirmSaveFavorite = () => {
+    if (!savingMeal) return;
+    const entries = day.foods.filter((f) => f.meal === savingMeal);
+    if (entries.length === 0) return;
+    const name = favName.trim() || savingMeal;
+    persistFavorites([favoriteFromEntries(name, savingMeal, entries), ...favorites]);
+    setSavingMeal(null);
+    setFavName("");
+  };
+
+  const deleteFavorite = (id: number) => persistFavorites(favorites.filter((f) => f.id !== id));
 
   /* умный локальный поиск: свои блюда + встроенная база, нечёткое совпадение и ранжирование */
   const local = useMemo(() => searchFoods(q, customFoods, 8), [q, customFoods]);
@@ -113,6 +199,24 @@ export function FoodTab({ day, saveDay, totals, profile }: Props) {
     setPicked({ name, kcal, p, f, c });
     setGrams(String(portion || 100));
     setAiResults(null);
+    setFavSaved(false);
+  };
+
+  /* сохранить выбранный продукт в избранное (как избранное из одного пункта, с текущей граммовкой и приёмом) */
+  const saveFoodFavorite = () => {
+    if (!picked) return;
+    const gNum = parseFloat(grams) || 100;
+    const k = gNum / 100;
+    const item: CustomFoodItem = {
+      name: picked.name,
+      grams: gNum,
+      kcal: picked.kcal * k,
+      p: picked.p * k,
+      f: picked.f * k,
+      c: picked.c * k,
+    };
+    persistFavorites([favoriteSingle(picked.name, meal, item), ...favorites]);
+    setFavSaved(true);
   };
 
   const add = () => {
@@ -179,6 +283,13 @@ export function FoodTab({ day, saveDay, totals, profile }: Props) {
             {aiLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Sparkles className="w-5 h-5" />}
             <span className="hidden sm:inline">AI</span>
           </button>
+          <button
+            onClick={() => setShowVoice(true)}
+            className="bg-surface hover:bg-raised-hover transition-colors duration-150 text-accent rounded-full px-4 cursor-pointer flex items-center justify-center shrink-0"
+            aria-label="Записать голосом"
+          >
+            <Mic className="w-5 h-5" />
+          </button>
         </div>
 
         {local.length > 0 && !picked && (
@@ -198,13 +309,25 @@ export function FoodTab({ day, saveDay, totals, profile }: Props) {
                   </span>
                 </button>
                 {item.id !== null && (
-                  <button
-                    onClick={() => deleteCustomFood(item.id!)}
-                    className="text-dim hover:text-danger cursor-pointer p-2 shrink-0"
-                    aria-label={`Удалить «${item.name}» из базы`}
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
+                  <>
+                    <button
+                      onClick={() => {
+                        const fc = customFoods.find((x) => x.id === item.id);
+                        if (fc) setEditFood(fc);
+                      }}
+                      className="text-dim hover:text-accent cursor-pointer p-2 shrink-0"
+                      aria-label={`Изменить «${item.name}»`}
+                    >
+                      <Pencil className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => deleteCustomFood(item.id!)}
+                      className="text-dim hover:text-danger cursor-pointer p-2 shrink-0"
+                      aria-label={`Удалить «${item.name}» из базы`}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </>
                 )}
               </li>
             ))}
@@ -248,13 +371,24 @@ export function FoodTab({ day, saveDay, totals, profile }: Props) {
           <div className="mt-5 border-t border-accent/40 pt-4">
             <div className="flex justify-between items-start">
               <div className="text-sm font-medium pr-2">{picked.name}</div>
-              <button
-                onClick={() => setPicked(null)}
-                className="text-dim hover:text-fg cursor-pointer p-2 -mt-1.5"
-                aria-label="Отмена"
-              >
-                <X className="w-4 h-4" />
-              </button>
+              <div className="flex items-center shrink-0 -mt-1.5">
+                <button
+                  onClick={saveFoodFavorite}
+                  disabled={favSaved}
+                  className={`cursor-pointer p-2 transition-colors ${favSaved ? "text-accent" : "text-dim hover:text-accent"}`}
+                  aria-label={favSaved ? "В избранном" : "В избранное"}
+                  title={favSaved ? "Добавлено в избранное" : "В избранное"}
+                >
+                  <Star className="w-4 h-4" strokeWidth={1.7} fill={favSaved ? "currentColor" : "none"} />
+                </button>
+                <button
+                  onClick={() => setPicked(null)}
+                  className="text-dim hover:text-fg cursor-pointer p-2"
+                  aria-label="Отмена"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
             </div>
             <div className="flex gap-3 mt-3 items-end">
               <input
@@ -321,6 +455,9 @@ export function FoodTab({ day, saveDay, totals, profile }: Props) {
         </div>
       </section>
 
+      {/* избранные приёмы пищи — типовой набор в один тап */}
+      <FavoriteMeals favorites={favorites} onLog={logEntries} onDelete={deleteFavorite} />
+
       {/* недавнее и частое — быстрый повтор */}
       <RecentFoods days={days} onPick={pickQuick} />
 
@@ -348,8 +485,21 @@ export function FoodTab({ day, saveDay, totals, profile }: Props) {
         )}
         {MEALS.filter((m) => byMeal.has(m)).map((m) => (
           <div key={m} className="mt-5">
-            <div className="text-xs text-accent font-medium mb-1 disp uppercase tracking-wider">
-              {m} · {Math.round(byMeal.get(m)!.reduce((s, f) => s + f.kcal, 0))} ккал
+            <div className="flex items-center justify-between mb-1">
+              <div className="text-xs text-accent font-medium disp uppercase tracking-wider">
+                {m} · {Math.round(byMeal.get(m)!.reduce((s, f) => s + f.kcal, 0))} ккал
+              </div>
+              <button
+                onClick={() => {
+                  setSavingMeal(m);
+                  setFavName(m);
+                }}
+                className="flex items-center gap-1 text-xs text-dim hover:text-accent cursor-pointer p-1 -mr-1"
+                aria-label={`Сохранить «${m}» в избранное`}
+              >
+                <Star className="w-3.5 h-3.5" strokeWidth={1.7} />
+                <span>в избранное</span>
+              </button>
             </div>
             <ul>
               {byMeal.get(m)!.map((f) => (
@@ -360,19 +510,39 @@ export function FoodTab({ day, saveDay, totals, profile }: Props) {
                       {Math.round(f.grams)} г · {Math.round(f.kcal)} ккал · Б {Math.round(f.p)}
                     </div>
                   </div>
-                  <button
-                    onClick={() => saveDay({ ...day, foods: day.foods.filter((x) => x.id !== f.id) })}
-                    className="text-dim hover:text-danger cursor-pointer p-2 shrink-0"
-                    aria-label="Удалить запись"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
+                  <div className="flex items-center shrink-0">
+                    <button
+                      onClick={() => editEntry(f)}
+                      className="text-dim hover:text-accent cursor-pointer p-2"
+                      aria-label="Изменить запись"
+                    >
+                      <Pencil className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => saveDay({ ...day, foods: day.foods.filter((x) => x.id !== f.id) })}
+                      className="text-dim hover:text-danger cursor-pointer p-2"
+                      aria-label="Удалить запись"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
                 </li>
               ))}
             </ul>
           </div>
         ))}
       </section>
+
+      {showVoice && (
+        <VoiceFood
+          onConfirm={(entries) => {
+            logEntries(entries);
+            setShowVoice(false);
+            window.scrollTo({ top: 0, behavior: "smooth" });
+          }}
+          onClose={() => setShowVoice(false)}
+        />
+      )}
 
       {showPhoto && (
         <PhotoFood
@@ -415,6 +585,49 @@ export function FoodTab({ day, saveDay, totals, profile }: Props) {
           <AiChef day={day} logEntries={logEntries} totals={totals} profile={profile} />
         </Sheet>
       )}
+
+      {savingMeal && (
+        <Sheet
+          title="В избранное"
+          icon={<Star className="w-4 h-4 text-accent" strokeWidth={1.6} />}
+          onClose={() => setSavingMeal(null)}
+        >
+          <p className="text-xs text-dim mb-4">
+            Сохраним «{savingMeal}» ({day.foods.filter((f) => f.meal === savingMeal).length} поз.) как избранный приём пищи —
+            записать его потом можно будет в один тап.
+          </p>
+          <input
+            value={favName}
+            onChange={(e) => setFavName(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && confirmSaveFavorite()}
+            placeholder="Название, напр. «Мой завтрак»"
+            className="w-full bg-surface rounded-full px-4 py-3 text-base"
+            aria-label="Название избранного"
+            autoFocus
+          />
+          <button
+            onClick={confirmSaveFavorite}
+            className="mt-4 w-full bg-accent hover:bg-accent-soft active:scale-[0.98] transition-all duration-150 text-accent-ink font-semibold rounded-full py-3 cursor-pointer"
+          >
+            Сохранить
+          </button>
+        </Sheet>
+      )}
+
+      {amountSheet && (
+        <FoodAmountSheet
+          title={amountSheet.title}
+          name={amountSheet.name}
+          per100={amountSheet.per100}
+          grams={amountSheet.grams}
+          meal={amountSheet.meal}
+          submitLabel={amountSheet.mode === "edit" ? "Сохранить" : "Записать"}
+          onSubmit={submitAmount}
+          onClose={() => setAmountSheet(null)}
+        />
+      )}
+
+      {editFood && <EditCustomFoodSheet food={editFood} onSave={saveEditedFood} onClose={() => setEditFood(null)} />}
     </div>
   );
 }

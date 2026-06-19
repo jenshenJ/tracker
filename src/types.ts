@@ -191,6 +191,20 @@ export interface CustomFood {
   items?: CustomFoodItem[];
 }
 
+/**
+ * Избранный приём пищи: типовой набор продуктов (например, обычный завтрак),
+ * записывается в дневник в один тап. Хранится в базе устройства.
+ */
+export interface FavoriteMeal {
+  id: number;
+  /** Название, например «Мой завтрак». */
+  name: string;
+  /** Приём пищи по умолчанию при записи. */
+  meal: Meal;
+  /** Состав: продукты с граммовкой и КБЖУ за эти граммы. */
+  items: CustomFoodItem[];
+}
+
 /** Формат файла резервной копии. */
 export interface BackupFile {
   app: "legko" | "tracker95";
@@ -200,6 +214,7 @@ export interface BackupFile {
   pantry: string;
   days: Record<string, DayLog>;
   customFoods?: CustomFood[];
+  favoriteMeals?: FavoriteMeal[];
   workouts?: Record<string, WorkoutLog>;
   customPrograms?: WorkoutProgram[];
   activeProgram?: ActiveProgram;
