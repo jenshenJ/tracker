@@ -151,12 +151,30 @@ export interface WorkoutExerciseLog {
 
 /** Лог тренировки за дату. */
 export interface WorkoutLog {
+  /** Уникальный id тренировки — в один день их может быть несколько. */
+  id: string;
   date: string;
   week: number;
   weekday: number;
   startedAt: string;
   finishedAt?: string;
   entries: WorkoutExerciseLog[];
+  /** Слепок плана сессии (после правок перед стартом). Старые логи — без него. */
+  slots?: ProgramSlot[];
+  /** Начало текущего отдыха, epoch мс. Переживает переключение вкладок. */
+  restStartedAt?: number;
+  /** Начало текущего подхода по времени, epoch мс. */
+  setStartedAt?: number;
+}
+
+/** Ингредиент составного блюда: продукт + его граммовка и КБЖУ за эти граммы. */
+export interface CustomFoodItem {
+  name: string;
+  grams: number;
+  kcal: number;
+  p: number;
+  f: number;
+  c: number;
 }
 
 /** Своё блюдо пользователя (КБЖУ на 100 г), хранится в базе устройства. */
@@ -167,6 +185,10 @@ export interface CustomFood {
   p: number;
   f: number;
   c: number;
+  /** Порция по умолчанию в граммах (для блюд из ингредиентов — суммарный вес). */
+  portion?: number;
+  /** Состав блюда, если оно собрано из нескольких продуктов. */
+  items?: CustomFoodItem[];
 }
 
 /** Формат файла резервной копии. */

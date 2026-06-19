@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { ChefHat, ChevronRight, Loader2, Plus, Sparkles } from "lucide-react";
-import type { DayLog, MealIdea, Profile, Totals } from "../types";
+import type { DayLog, FoodEntry, MealIdea, Profile, Totals } from "../types";
 import { SCHED_LABEL, defaultMeal } from "../constants";
 import { AiError, askAi, parseJsonArray } from "../lib/ai";
 import { chefPrompt } from "../lib/prompts";
@@ -9,12 +9,12 @@ import { storage } from "../lib/storage";
 
 interface Props {
   day: DayLog;
-  saveDay: (d: DayLog) => void;
+  logEntries: (entries: FoodEntry[]) => void;
   totals: Totals;
   profile: Profile;
 }
 
-export function AiChef({ day, saveDay, totals, profile }: Props) {
+export function AiChef({ day, logEntries, totals, profile }: Props) {
   const [pantry, setPantry] = useState(() => storage.loadPantry());
   const [ideas, setIdeas] = useState<MealIdea[] | null>(null);
   const [loading, setLoading] = useState(false);
@@ -54,7 +54,7 @@ export function AiChef({ day, saveDay, totals, profile }: Props) {
       f: it.f,
       c: it.c,
     }));
-    saveDay({ ...day, foods: [...day.foods, ...foods] });
+    logEntries(foods);
     setIdeas(null);
   };
 

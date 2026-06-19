@@ -7,8 +7,10 @@ import { AiError, askAi, parseJsonArray } from "../../lib/ai";
 import { foodSearchPrompt } from "../../lib/prompts";
 import { nextId } from "../../lib/id";
 import { storage } from "../../lib/storage";
+import { upsertLoggedFoods, type QuickFood } from "../../lib/foods";
 import { AiChef } from "../AiChef";
 import { CustomFoodForm } from "../CustomFoodForm";
+import { RecentFoods } from "../RecentFoods";
 
 interface Props {
   day: DayLog;
@@ -39,7 +41,29 @@ export function FoodTab({ day, saveDay, totals, profile }: Props) {
     const next = [food, ...customFoods];
     setCustomFoods(next);
     storage.saveCustomFoods(next);
-    pick(food.name, food.kcal, food.p, food.f, food.c, 100);
+    pick(food.name, food.kcal, food.p, food.f, food.c, food.portion ?? 100);
+  };
+
+  /* единая точка записи в дневник: пишем день + автосохраняем еду в базу */
+  const logEntries = (entries: FoodEntry[]) => {
+    saveDay({ ...day, foods: [...day.foods, ...entries] });
+    const next = upsertLoggedFoods(entries, customFoods);
+    if (next !== customFoods) {
+      setCustomFoods(next);
+      storage.saveCustomFoods(next);
+    }
+  };
+
+  /* недавнее/частое — из всей истории дневника; day/customFoods в deps как триггер пересчёта после записи */
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const days = useMemo(() => storage.allDays(), [day, customFoods]);
+
+  /* выбор недавнего/частого: открываем редактор с запомненным весом — вес можно изменить перед записью */
+  const pickQuick = (q: QuickFood) => {
+    const per = 100 / q.grams;
+    pick(q.name, q.kcal * per, q.p * per, q.f * per, q.c * per, q.grams);
+    setMeal(q.meal);
+    window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   const deleteCustomFood = (id: number) => {
@@ -54,7 +78,7 @@ export function FoodTab({ day, saveDay, totals, profile }: Props) {
     if (s.length < 2) return [];
     const own = customFoods
       .filter((x) => x.name.toLowerCase().includes(s))
-      .map((x) => ({ id: x.id as number | null, name: x.name, kcal: x.kcal, p: x.p, f: x.f, c: x.c }));
+      .map((x) => ({ id: x.id as number | null, name: x.name, kcal: x.kcal, p: x.p, f: x.f, c: x.c, portion: x.portion }));
     const builtin = FOOD_DB.filter((x) => x[0].toLowerCase().includes(s)).map(([name, kcal, p, f, c]) => ({
       id: null as number | null,
       name,
@@ -62,6 +86,7 @@ export function FoodTab({ day, saveDay, totals, profile }: Props) {
       p,
       f,
       c,
+      portion: undefined as number | undefined,
     }));
     return [...own, ...builtin].slice(0, 7);
   }, [q, customFoods]);
@@ -92,22 +117,18 @@ export function FoodTab({ day, saveDay, totals, profile }: Props) {
     const g = parseFloat(grams);
     if (!picked || !g) return;
     const k = g / 100;
-    saveDay({
-      ...day,
-      foods: [
-        ...day.foods,
-        {
-          id: nextId(),
-          meal,
-          name: picked.name,
-          grams: g,
-          kcal: picked.kcal * k,
-          p: picked.p * k,
-          f: picked.f * k,
-          c: picked.c * k,
-        },
-      ],
-    });
+    logEntries([
+      {
+        id: nextId(),
+        meal,
+        name: picked.name,
+        grams: g,
+        kcal: picked.kcal * k,
+        p: picked.p * k,
+        f: picked.f * k,
+        c: picked.c * k,
+      },
+    ]);
     setPicked(null);
     setQ("");
     setGrams("");
@@ -163,7 +184,7 @@ export function FoodTab({ day, saveDay, totals, profile }: Props) {
             {local.map((item) => (
               <li key={item.id ?? item.name} className="border-b border-line first:border-t flex items-center gap-1">
                 <button
-                  onClick={() => pick(item.name, item.kcal, item.p, item.f, item.c, item.name.includes("Протеин") ? 30 : 100)}
+                  onClick={() => pick(item.name, item.kcal, item.p, item.f, item.c, item.portion ?? (item.name.includes("Протеин") ? 30 : 100))}
                   className="flex-1 min-w-0 text-left py-3 cursor-pointer flex justify-between items-baseline gap-3 hover:text-accent transition-colors duration-150"
                 >
                   <span className="text-sm truncate">
@@ -270,11 +291,14 @@ export function FoodTab({ day, saveDay, totals, profile }: Props) {
         )}
       </section>
 
-      {/* своё блюдо */}
-      <CustomFoodForm onSave={saveCustomFood} />
+      {/* недавнее и частое — быстрый повтор */}
+      <RecentFoods days={days} onPick={pickQuick} />
+
+      {/* своё блюдо: КБЖУ вручную или сборка из продуктов */}
+      <CustomFoodForm customFoods={customFoods} onSave={saveCustomFood} />
 
       {/* AI-повар */}
-      <AiChef day={day} saveDay={saveDay} totals={totals} profile={profile} />
+      <AiChef day={day} logEntries={logEntries} totals={totals} profile={profile} />
 
       {/* дневник */}
       <section>
