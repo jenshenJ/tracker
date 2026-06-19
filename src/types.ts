@@ -193,7 +193,7 @@ export interface CustomFood {
 
 /** Формат файла резервной копии. */
 export interface BackupFile {
-  app: "tracker95";
+  app: "legko" | "tracker95";
   exportedAt: string;
   profile: Profile;
   weights: Weights;

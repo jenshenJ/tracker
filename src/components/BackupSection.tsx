@@ -18,7 +18,7 @@ export function BackupSection({ profile }: Props) {
     setMsg("");
     try {
       const out: BackupFile = {
-        app: "tracker95",
+        app: "legko",
         exportedAt: new Date().toISOString(),
         profile,
         weights: storage.loadWeights(),
@@ -32,7 +32,7 @@ export function BackupSection({ profile }: Props) {
       const blob = new Blob([JSON.stringify(out, null, 2)], { type: "application/json" });
       const a = document.createElement("a");
       a.href = URL.createObjectURL(blob);
-      a.download = `tracker95-backup-${todayStr()}.json`;
+      a.download = `legko-backup-${todayStr()}.json`;
       a.click();
       URL.revokeObjectURL(a.href);
       setMsg(`Выгружено: ${Object.keys(out.weights).length} взвешиваний, ${Object.keys(out.days).length} дней дневника.`);
@@ -50,7 +50,7 @@ export function BackupSection({ profile }: Props) {
     setMsg("");
     try {
       const data = JSON.parse(await file.text()) as BackupFile;
-      if (data.app !== "tracker95") throw new Error("wrong file");
+      if (data.app !== "legko" && data.app !== "tracker95") throw new Error("wrong file");
       if (data.profile) storage.saveProfile(data.profile);
       if (data.weights) storage.saveWeights(data.weights);
       if (typeof data.pantry === "string") storage.savePantry(data.pantry);

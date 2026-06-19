@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" fill="#0A0A0A"/>
+  <!-- lowercase l: vertical stroke with a soft curved tail -->
+  <path d="M226 120 L226 300 Q226 352 286 352" fill="none" stroke="#D6F451"
+        stroke-width="38" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- progress echo, centered on same axis as the glyph (cx=256) -->
+  <rect x="163" y="404" width="186" height="9" rx="4.5" fill="#262626"/>
+  <rect x="163" y="404" width="108" height="9" rx="4.5" fill="#D6F451"/>
+</svg>

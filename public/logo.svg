@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 200">
+  <rect width="560" height="200" rx="28" fill="#0A0A0A"/>
+  <!-- icon tile -->
+  <g transform="translate(48 50)">
+    <rect width="100" height="100" rx="22" fill="#141414"/>
+    <path d="M44.25 23 L44.25 58.5 Q44.25 68.5 55.75 68.5" fill="none" stroke="#D6F451"
+          stroke-width="7.5" stroke-linecap="round" stroke-linejoin="round"/>
+    <rect x="31.7" y="79" width="36.5" height="1.8" rx="0.9" fill="#2E2E2E"/>
+    <rect x="31.7" y="79" width="21" height="1.8" rx="0.9" fill="#D6F451"/>
+  </g>
+  <!-- wordmark -->
+  <text x="186" y="116" font-family="'Space Grotesk','Arial Narrow',system-ui,sans-serif" font-weight="700" font-size="72" letter-spacing="-1" fill="#FAFAFA">legko</text>
+  <rect x="188" y="140" width="232" height="6" rx="3" fill="#262626"/>
+  <rect x="188" y="140" width="132" height="6" rx="3" fill="#D6F451"/>
+</svg>
