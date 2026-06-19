@@ -623,6 +623,19 @@ export function FoodTab({ day, saveDay, totals, profile }: Props) {
           meal={amountSheet.meal}
           submitLabel={amountSheet.mode === "edit" ? "Сохранить" : "Записать"}
           onSubmit={submitAmount}
+          onFavorite={(grams, meal) => {
+            const k = grams / 100;
+            const per = amountSheet.per100;
+            const item: CustomFoodItem = {
+              name: amountSheet.name,
+              grams,
+              kcal: per.kcal * k,
+              p: per.p * k,
+              f: per.f * k,
+              c: per.c * k,
+            };
+            persistFavorites([favoriteSingle(amountSheet.name, meal, item), ...favorites]);
+          }}
           onClose={() => setAmountSheet(null)}
         />
       )}
