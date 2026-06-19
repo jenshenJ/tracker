@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react";
 import { Check, ChevronRight, Play, RotateCcw, Settings2, SkipForward, Timer, Trash2 } from "lucide-react";
 import type { ActiveProgram, DayLog, ProgramSlot, WorkoutExerciseLog, WorkoutLog, WorkoutProgram } from "../../types";
-import { exerciseName } from "../../constants/exercises";
+import { exerciseMeasure, exerciseName } from "../../constants/exercises";
 import { BUILTIN_PROGRAMS, findBuiltin, findProgramDay, programWeekdays } from "../../constants/programs";
 import { RU_DAYS, fmtDate, todayStr } from "../../lib/date";
-import { blankProgram, isGymDay, lastSetFor, mondayOf, nearestGymWeekday, programWeekFor } from "../../lib/gym";
+import { blankProgram, isGymDay, lastSetFor, mondayOf, nearestGymWeekday, programWeekFor, timeTarget } from "../../lib/gym";
 import { nextId } from "../../lib/id";
 import { storage } from "../../lib/storage";
 import { ExerciseIcon } from "../ExerciseIcons";
@@ -35,6 +35,13 @@ const fmtTime = (ms: number) => {
   return h > 0 ? `${h}:${String(m).padStart(2, "0")}:${ss}` : `${m}:${ss}`;
 };
 
+/** Подпись чипа подхода: "60×12" или "1:23" для подходов по времени. */
+const setChip = (s: { weight: number; reps: number; seconds?: number }) =>
+  s.seconds != null ? fmtTime(s.seconds * 1000) : `${s.weight}×${s.reps}`;
+
+/** Обёртка над Date.now: компилятор react-hooks считает прямой вызов в хендлерах нечистым. */
+const nowMs = () => Date.now();
+
 const workoutStats = (w: WorkoutLog) => {
   const sets = w.entries.reduce((s, e) => s + e.sets.length, 0);
   const tonnage = w.entries.reduce((s, e) => s + e.sets.reduce((a, x) => a + x.weight * x.reps, 0), 0);
@@ -53,7 +60,9 @@ export function GymTab({ date, day, saveDay }: Props) {
   const [drafts, setDrafts] = useState<Record<string, { w?: string; r?: string }>>({});
   const [focusId, setFocusId] = useState<string | null>(null);
   const [restStart, setRestStart] = useState<number | null>(null);
-  const [now, setNow] = useState(() => Date.now());
+  /** таймер текущего подхода для упражнений по времени */
+  const [setStart, setSetStart] = useState<number | null>(null);
+  const [now, setNow] = useState(() => nowMs());
   const [historyOpen, setHistoryOpen] = useState<string | null>(null);
 
   const program: WorkoutProgram =
@@ -68,7 +77,7 @@ export function GymTab({ date, day, saveDay }: Props) {
 
   useEffect(() => {
     if (!running) return;
-    const t = setInterval(() => setNow(Date.now()), 1000);
+    const t = setInterval(() => setNow(nowMs()), 1000);
     return () => clearInterval(t);
   }, [running]);
 
@@ -139,14 +148,24 @@ export function GymTab({ date, day, saveDay }: Props) {
     if (!wv || !rv) return;
     updateEntry(id, (e) => ({ ...e, sets: [...e.sets, { weight: wv, reps: rv }] }));
     setDrafts((d) => ({ ...d, [id]: {} }));
-    setRestStart(Date.now());
+    setRestStart(nowMs());
+  };
+
+  /** стоп таймерного подхода: записываем длительность */
+  const stopTimedSet = () => {
+    if (!currentSlot || setStart === null) return;
+    const seconds = Math.max(1, Math.round((nowMs() - setStart) / 1000));
+    updateEntry(currentSlot.exerciseId, (e) => ({ ...e, sets: [...e.sets, { weight: 0, reps: 0, seconds }] }));
+    setSetStart(null);
+    setRestStart(nowMs());
   };
 
   const finish = () => {
     if (!log) return;
     setRestStart(null);
+    setSetStart(null);
     saveLog({ ...log, finishedAt: new Date().toISOString() });
-    const min = Math.max(5, Math.round((Date.now() - new Date(log.startedAt).getTime()) / 60000));
+    const min = Math.max(5, Math.round((nowMs() - new Date(log.startedAt).getTime()) / 60000));
     saveDay({ ...day, acts: [...day.acts, { id: nextId(), type: "Зал", min }] });
   };
 
@@ -165,7 +184,7 @@ export function GymTab({ date, day, saveDay }: Props) {
         activeId={active.id}
         onActivate={activate}
         onEdit={(p) => {
-          setDraft(p.builtin ? { ...JSON.parse(JSON.stringify(p)), id: "custom-" + Date.now(), name: p.name + " (копия)", builtin: undefined } : p);
+          setDraft(p.builtin ? { ...JSON.parse(JSON.stringify(p)), id: "custom-" + nowMs(), name: p.name + " (копия)", builtin: undefined } : p);
           setView("editor");
         }}
         onDelete={(id) => {
@@ -249,7 +268,10 @@ export function GymTab({ date, day, saveDay }: Props) {
               return (
                 <button
                   key={s.exerciseId}
-                  onClick={() => setFocusId(s.exerciseId)}
+                  onClick={() => {
+                    setFocusId(s.exerciseId);
+                    setSetStart(null);
+                  }}
                   className={`w-11 h-11 rounded-full flex items-center justify-center cursor-pointer transition-all duration-150 ${
                     isCur
                       ? "bg-accent text-accent-ink"
@@ -278,7 +300,10 @@ export function GymTab({ date, day, saveDay }: Props) {
                   <span className={INTENSITY_STYLE[currentSlot.intensity]}>{currentSlot.intensity}</span>
                   <span className="text-dim">
                     {" "}
-                    · цель {currentSlot.repsMin}–{currentSlot.repsMax} повт
+                    · цель{" "}
+                    {exerciseMeasure(currentSlot.exerciseId) === "time"
+                      ? timeTarget(currentSlot.repsMin, currentSlot.repsMax)
+                      : `${currentSlot.repsMin}–${currentSlot.repsMax} повт`}
                   </span>
                 </div>
               </div>
@@ -295,53 +320,83 @@ export function GymTab({ date, day, saveDay }: Props) {
                     key={i}
                     onClick={() => updateEntry(currentSlot.exerciseId, (x) => ({ ...x, sets: x.sets.filter((_, j) => j !== i) }))}
                     className="bg-surface rounded-full px-3 py-1.5 text-xs disp cursor-pointer hover:text-danger transition-colors duration-150"
-                    aria-label={`Подход ${i + 1}: ${s.weight} кг × ${s.reps}. Нажмите, чтобы удалить`}
+                    aria-label={`Подход ${i + 1}: ${setChip(s)}. Нажмите, чтобы удалить`}
                   >
-                    {s.weight}×{s.reps}
+                    {setChip(s)}
                   </button>
                 ))}
               </div>
             )}
 
-            <div className="grid grid-cols-2 gap-6 mt-5">
-              <label className="block border-b border-line focus-within:border-accent transition-colors">
-                <span className="text-xs text-dim">кг</span>
-                <input
-                  type="number"
-                  inputMode="decimal"
-                  value={inputW}
-                  onChange={(e) =>
-                    setDrafts((d) => ({ ...d, [currentSlot.exerciseId]: { ...d[currentSlot.exerciseId], w: e.target.value } }))
-                  }
-                  className="w-full min-w-0 bg-transparent disp text-3xl font-medium outline-none py-1"
-                  aria-label="Вес, кг"
-                />
-              </label>
-              <label className="block border-b border-line focus-within:border-accent transition-colors">
-                <span className="text-xs text-dim">повторы</span>
-                <input
-                  type="number"
-                  inputMode="numeric"
-                  value={inputR}
-                  onChange={(e) =>
-                    setDrafts((d) => ({ ...d, [currentSlot.exerciseId]: { ...d[currentSlot.exerciseId], r: e.target.value } }))
-                  }
-                  className="w-full min-w-0 bg-transparent disp text-3xl font-medium outline-none py-1"
-                  aria-label="Повторы"
-                />
-              </label>
-            </div>
+            {exerciseMeasure(currentSlot.exerciseId) === "time" ? (
+              /* подход по времени: старт/стоп с живым счётом */
+              <div className="mt-5">
+                {setStart !== null ? (
+                  <>
+                    <div className="text-center">
+                      <div className="disp text-6xl font-semibold text-accent">{fmtTime(now - setStart)}</div>
+                      <div className="text-xs text-dim mt-1">идёт подход</div>
+                    </div>
+                    <button
+                      onClick={stopTimedSet}
+                      className="mt-5 w-full bg-accent hover:bg-accent-soft active:scale-[0.98] transition-all duration-150 text-accent-ink font-semibold rounded-full py-3.5 cursor-pointer"
+                    >
+                      Стоп — записать подход
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    onClick={() => setSetStart(nowMs())}
+                    className="w-full bg-accent hover:bg-accent-soft active:scale-[0.98] transition-all duration-150 text-accent-ink font-semibold rounded-full py-3.5 flex items-center justify-center gap-2 cursor-pointer"
+                  >
+                    <Play className="w-5 h-5" /> Начать подход
+                  </button>
+                )}
+              </div>
+            ) : (
+              <>
+                <div className="grid grid-cols-2 gap-6 mt-5">
+                  <label className="block border-b border-line focus-within:border-accent transition-colors">
+                    <span className="text-xs text-dim">кг</span>
+                    <input
+                      type="number"
+                      inputMode="decimal"
+                      value={inputW}
+                      onChange={(e) =>
+                        setDrafts((d) => ({ ...d, [currentSlot.exerciseId]: { ...d[currentSlot.exerciseId], w: e.target.value } }))
+                      }
+                      className="w-full min-w-0 bg-transparent disp text-3xl font-medium outline-none py-1"
+                      aria-label="Вес, кг"
+                    />
+                  </label>
+                  <label className="block border-b border-line focus-within:border-accent transition-colors">
+                    <span className="text-xs text-dim">повторы</span>
+                    <input
+                      type="number"
+                      inputMode="numeric"
+                      value={inputR}
+                      onChange={(e) =>
+                        setDrafts((d) => ({ ...d, [currentSlot.exerciseId]: { ...d[currentSlot.exerciseId], r: e.target.value } }))
+                      }
+                      className="w-full min-w-0 bg-transparent disp text-3xl font-medium outline-none py-1"
+                      aria-label="Повторы"
+                    />
+                  </label>
+                </div>
 
-            <button
-              onClick={addSet}
-              className="mt-6 w-full bg-accent hover:bg-accent-soft active:scale-[0.98] transition-all duration-150 text-accent-ink font-semibold rounded-full py-3.5 cursor-pointer"
-            >
-              Записать подход
-            </button>
+                <button
+                  onClick={addSet}
+                  className="mt-6 w-full bg-accent hover:bg-accent-soft active:scale-[0.98] transition-all duration-150 text-accent-ink font-semibold rounded-full py-3.5 cursor-pointer"
+                >
+                  Записать подход
+                </button>
+              </>
+            )}
             <button
               onClick={() => {
                 updateEntry(currentSlot.exerciseId, (x) => ({ ...x, skipped: true }));
                 setFocusId(null);
+                setSetStart(null);
               }}
               className="mt-3 w-full text-muted hover:text-fg transition-colors duration-150 rounded-full py-2 text-sm cursor-pointer flex items-center justify-center gap-1.5"
             >
@@ -425,7 +480,9 @@ export function GymTab({ date, day, saveDay }: Props) {
                         <div className={`text-xs ${INTENSITY_STYLE[s.intensity]}`}>{s.intensity}</div>
                       </div>
                       <div className="disp text-sm text-muted shrink-0">
-                        {s.sets}×{s.repsMin}–{s.repsMax}
+                        {exerciseMeasure(s.exerciseId) === "time"
+                          ? `${s.sets > 1 ? `${s.sets}× ` : ""}${timeTarget(s.repsMin, s.repsMax)}`
+                          : `${s.sets}×${s.repsMin}–${s.repsMax}`}
                       </div>
                     </li>
                   ))}
@@ -513,7 +570,7 @@ export function GymTab({ date, day, saveDay }: Props) {
                               {e.skipped ? (
                                 <span className="text-dim">пропущено</span>
                               ) : e.sets.length ? (
-                                e.sets.map((s) => `${s.weight}×${s.reps}`).join(" · ")
+                                e.sets.map(setChip).join(" · ")
                               ) : (
                                 <span className="text-dim">—</span>
                               )}

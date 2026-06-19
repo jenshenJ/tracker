@@ -34,6 +34,7 @@ export function programBuilderPrompt(a: ProgramWizardAnswers, catalogList: strin
     (a.restrictions.trim() ? ` Ограничения: ${a.restrictions.trim()}.` : "") +
     `\nИспользуй ТОЛЬКО упражнения из каталога (указывай exerciseId точно):\n${catalogList}\n` +
     `Дни недели: 1=пн 2=вт 3=ср 4=чт 5=пт 6=сб 0=вс. Распредели тренировки равномерно. ` +
+    `Для кардио и планки repsMin/repsMax — это СЕКУНДЫ (кардио обычно sets:1, 600-1800 сек; планка sets:2-3, 30-90 сек). ` +
     `weeks: 1 (или 2, если есть смысл чередовать недели). 4-7 упражнений в день, intensity одно из: "легкая","средняя","тяжелая".\n` +
     `Верни ТОЛЬКО валидный JSON-объект без markdown:\n` +
     `{"name":"короткое название","weeks":1,"days":[{"week":1,"weekday":1,"slots":[{"exerciseId":"bench0","intensity":"средняя","sets":4,"repsMin":8,"repsMax":12}]}]}`

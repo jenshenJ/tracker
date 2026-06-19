@@ -2,8 +2,9 @@ import { useState } from "react";
 import { Check, ChevronRight, Copy, Pencil, Plus, Sparkles, Trash2 } from "lucide-react";
 import type { WorkoutProgram } from "../../types";
 import { BUILTIN_PROGRAMS, programWeekdays } from "../../constants/programs";
-import { exerciseName } from "../../constants/exercises";
+import { exerciseMeasure, exerciseName } from "../../constants/exercises";
 import { RU_DAYS } from "../../lib/date";
+import { timeTarget } from "../../lib/gym";
 
 interface Props {
   custom: WorkoutProgram[];
@@ -67,7 +68,13 @@ export function ProgramManager({ custom, activeId, onActivate, onEdit, onDelete,
                         {RU_DAYS[d.weekday]}
                       </div>
                       <div className="text-xs text-muted mt-0.5">
-                        {d.slots.map((sl) => `${exerciseName(sl.exerciseId)} ${sl.sets}×${sl.repsMin}–${sl.repsMax}`).join(" · ")}
+                        {d.slots
+                          .map((sl) =>
+                            exerciseMeasure(sl.exerciseId) === "time"
+                              ? `${exerciseName(sl.exerciseId)} ${sl.sets > 1 ? `${sl.sets}× ` : ""}${timeTarget(sl.repsMin, sl.repsMax)}`
+                              : `${exerciseName(sl.exerciseId)} ${sl.sets}×${sl.repsMin}–${sl.repsMax}`
+                          )
+                          .join(" · ")}
                       </div>
                     </div>
                   ))}

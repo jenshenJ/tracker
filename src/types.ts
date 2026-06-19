@@ -92,11 +92,16 @@ export type MuscleGroup =
   | "core"
   | "cardio";
 
+/** Как измеряется упражнение: повторы с весом или время. */
+export type Measure = "reps" | "time";
+
 /** Упражнение каталога. */
 export interface Exercise {
   id: string;
   name: string;
   group: MuscleGroup;
+  /** по умолчанию "reps"; для time repsMin/repsMax слота — секунды */
+  measure?: Measure;
 }
 
 /** Слот программы: упражнение + интенсивность + подходы × рекомендуемые повторы. */
@@ -134,6 +139,8 @@ export interface ActiveProgram {
 export interface WorkoutSetLog {
   weight: number;
   reps: number;
+  /** для упражнений по времени: длительность подхода, сек (weight/reps = 0) */
+  seconds?: number;
 }
 
 export interface WorkoutExerciseLog {

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { ArrowDown, ArrowUp, Plus, Search, Trash2, X } from "lucide-react";
 import type { Intensity, MuscleGroup, ProgramDay, ProgramSlot, WorkoutProgram } from "../../types";
-import { EXERCISE_CATALOG, GROUP_LABEL, exerciseName } from "../../constants/exercises";
+import { EXERCISE_CATALOG, GROUP_LABEL, exerciseMeasure, exerciseName } from "../../constants/exercises";
 import { RU_DAYS } from "../../lib/date";
 import { ExerciseIcon } from "../ExerciseIcons";
 
@@ -21,6 +21,14 @@ export function ProgramEditor({ initial, onSave, onCancel }: Props) {
   const [pickerFor, setPickerFor] = useState<number | null>(null);
   const [q, setQ] = useState("");
   const [group, setGroup] = useState<MuscleGroup | null>(null);
+  /** единицы ввода временных слотов: ключ "день-слот" → сек | мин; по умолчанию от величины */
+  const [units, setUnits] = useState<Record<string, "s" | "m">>({});
+
+  const unitOf = (di: number, si: number, s: ProgramSlot): "s" | "m" =>
+    units[`${di}-${si}`] ?? (s.repsMax >= 120 ? "m" : "s");
+  /** значение поля в текущих единицах */
+  const fromSec = (v: number, u: "s" | "m") => (u === "m" ? Math.round(v / 60) : v);
+  const toSec = (v: number, u: "s" | "m") => (u === "m" ? v * 60 : v);
 
   const setDay = (i: number, fn: (d: ProgramDay) => ProgramDay) =>
     setP({ ...p, days: p.days.map((d, j) => (j === i ? fn(d) : d)) });
@@ -158,20 +166,48 @@ export function ProgramEditor({ initial, onSave, onCancel }: Props) {
                   <input
                     type="number"
                     inputMode="numeric"
-                    value={s.repsMin}
-                    onChange={(e) => setSlot(i, si, (x) => ({ ...x, repsMin: parseInt(e.target.value) || 1 }))}
+                    value={
+                      exerciseMeasure(s.exerciseId) === "time" ? fromSec(s.repsMin, unitOf(i, si, s)) : s.repsMin
+                    }
+                    onChange={(e) => {
+                      const v = parseInt(e.target.value) || 1;
+                      const isTime = exerciseMeasure(s.exerciseId) === "time";
+                      const u = unitOf(i, si, s);
+                      setSlot(i, si, (x) => ({ ...x, repsMin: isTime ? toSec(v, u) : v }));
+                    }}
                     className="w-12 bg-surface rounded-lg px-2 py-1.5 text-center disp"
-                    aria-label="Повторы от"
+                    aria-label="От"
                   />
                   <span className="text-dim">–</span>
                   <input
                     type="number"
                     inputMode="numeric"
-                    value={s.repsMax}
-                    onChange={(e) => setSlot(i, si, (x) => ({ ...x, repsMax: parseInt(e.target.value) || 1 }))}
+                    value={
+                      exerciseMeasure(s.exerciseId) === "time" ? fromSec(s.repsMax, unitOf(i, si, s)) : s.repsMax
+                    }
+                    onChange={(e) => {
+                      const v = parseInt(e.target.value) || 1;
+                      const isTime = exerciseMeasure(s.exerciseId) === "time";
+                      const u = unitOf(i, si, s);
+                      setSlot(i, si, (x) => ({ ...x, repsMax: isTime ? toSec(v, u) : v }));
+                    }}
                     className="w-12 bg-surface rounded-lg px-2 py-1.5 text-center disp"
-                    aria-label="Повторы до"
+                    aria-label="До"
                   />
+                  {exerciseMeasure(s.exerciseId) === "time" ? (
+                    <button
+                      onClick={() => {
+                        const next = unitOf(i, si, s) === "s" ? "m" : "s";
+                        setUnits((u) => ({ ...u, [`${i}-${si}`]: next }));
+                      }}
+                      className="bg-raised hover:bg-raised-hover rounded-lg px-2.5 py-1.5 cursor-pointer transition-colors duration-150 text-fg"
+                      aria-label="Переключить единицы: секунды или минуты"
+                    >
+                      {unitOf(i, si, s) === "m" ? "мин" : "сек"} ⇄
+                    </button>
+                  ) : (
+                    <span className="text-dim">повт</span>
+                  )}
                   <select
                     value={s.intensity}
                     onChange={(e) => setSlot(i, si, (x) => ({ ...x, intensity: e.target.value as Intensity }))}
@@ -224,10 +260,14 @@ export function ProgramEditor({ initial, onSave, onCancel }: Props) {
                   <li key={x.id} className="border-b border-line first:border-t">
                     <button
                       onClick={() => {
-                        setDay(i, (d2) => ({
-                          ...d2,
-                          slots: [...d2.slots, { exerciseId: x.id, intensity: "средняя", sets: 3, repsMin: 8, repsMax: 12 }],
-                        }));
+                        /* дефолты: кардио — 1×10–20 мин, время (планка) — 3×30–60 сек, иначе 3×8–12 */
+                        const slot =
+                          x.measure === "time"
+                            ? x.group === "cardio"
+                              ? { exerciseId: x.id, intensity: "средняя" as const, sets: 1, repsMin: 600, repsMax: 1200 }
+                              : { exerciseId: x.id, intensity: "средняя" as const, sets: 3, repsMin: 30, repsMax: 60 }
+                            : { exerciseId: x.id, intensity: "средняя" as const, sets: 3, repsMin: 8, repsMax: 12 };
+                        setDay(i, (d2) => ({ ...d2, slots: [...d2.slots, slot] }));
                         setQ("");
                       }}
                       className="w-full text-left py-2.5 flex items-center gap-2.5 cursor-pointer hover:text-accent transition-colors duration-150"

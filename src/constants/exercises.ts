@@ -1,4 +1,4 @@
-import type { Exercise, MuscleGroup } from "../types";
+import type { Exercise, Measure, MuscleGroup } from "../types";
 
 export const GROUP_LABEL: Record<MuscleGroup, string> = {
   chest: "Грудь",
@@ -13,7 +13,7 @@ export const GROUP_LABEL: Record<MuscleGroup, string> = {
   cardio: "Кардио",
 };
 
-const e = (id: string, name: string, group: MuscleGroup): Exercise => ({ id, name, group });
+const e = (id: string, name: string, group: MuscleGroup, measure?: Measure): Exercise => ({ id, name, group, measure });
 
 /**
  * Каталог упражнений. Ид-шники первых одиннадцати исторические —
@@ -78,18 +78,18 @@ export const EXERCISE_CATALOG: Exercise[] = [
   e("calf", "Подъём на носки", "calves"),
   e("seatedCalf", "Подъём на носки сидя", "calves"),
   /* пресс */
-  e("plank", "Планка", "core"),
+  e("plank", "Планка", "core", "time"),
   e("crunches", "Скручивания", "core"),
   e("legRaises", "Подъёмы ног", "core"),
   e("russianTwist", "Русские скручивания", "core"),
   e("abWheel", "Ролик для пресса", "core"),
-  /* кардио */
-  e("treadmill", "Беговая дорожка", "cardio"),
-  e("bike", "Велотренажёр", "cardio"),
-  e("elliptical", "Эллипс", "cardio"),
-  e("rowingMachine", "Гребной тренажёр", "cardio"),
-  e("jumpRope", "Скакалка", "cardio"),
-  e("stairs", "Степпер", "cardio"),
+  /* кардио — измеряется временем */
+  e("treadmill", "Беговая дорожка", "cardio", "time"),
+  e("bike", "Велотренажёр", "cardio", "time"),
+  e("elliptical", "Эллипс", "cardio", "time"),
+  e("rowingMachine", "Гребной тренажёр", "cardio", "time"),
+  e("jumpRope", "Скакалка", "cardio", "time"),
+  e("stairs", "Степпер", "cardio", "time"),
 ];
 
 const byId = new Map(EXERCISE_CATALOG.map((x) => [x.id, x]));
@@ -97,6 +97,7 @@ const byId = new Map(EXERCISE_CATALOG.map((x) => [x.id, x]));
 export const exerciseById = (id: string): Exercise | undefined => byId.get(id);
 export const exerciseName = (id: string): string => byId.get(id)?.name ?? id;
 export const exerciseGroup = (id: string): MuscleGroup | undefined => byId.get(id)?.group;
+export const exerciseMeasure = (id: string): Measure => byId.get(id)?.measure ?? "reps";
 
 /** Поиск id по названию (для валидации ответов AI). */
 export function findExerciseByName(name: string): Exercise | undefined {

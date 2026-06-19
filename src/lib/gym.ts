@@ -42,6 +42,16 @@ export function lastSetFor(workouts: Record<string, WorkoutLog>, exerciseId: str
   return null;
 }
 
+/** Человеко-читаемая длительность: 45 → "45 сек", 900 → "15 мин". */
+export const fmtSeconds = (s: number) => (s < 120 ? `${s} сек` : `${Math.round(s / 60)} мин`);
+
+/** Цель слота по времени: "30–60 сек" / "10–20 мин". */
+export function timeTarget(repsMin: number, repsMax: number): string {
+  if (repsMin === repsMax) return fmtSeconds(repsMin);
+  if (repsMax < 120) return `${repsMin}–${repsMax} сек`;
+  return `${Math.round(repsMin / 60)}–${Math.round(repsMax / 60)} мин`;
+}
+
 /** Пустая заготовка своей программы. */
 export function blankProgram(): WorkoutProgram {
   return {
