@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { ChevronRight, NotebookPen } from "lucide-react";
 import type { CustomFood } from "../types";
 import { nextId } from "../lib/id";
 import { DishBuilder } from "./DishBuilder";
@@ -12,9 +11,8 @@ interface Props {
 
 type Mode = "manual" | "build";
 
-/** «Своё блюдо»: КБЖУ вручную (основной способ) или сборка из продуктов. */
+/** Контент «Своё блюдо» для шторки: КБЖУ вручную (основной способ) или сборка из продуктов. */
 export function CustomFoodForm({ customFoods, onSave }: Props) {
-  const [open, setOpen] = useState(false);
   const [mode, setMode] = useState<Mode>("manual");
   const [name, setName] = useState("");
   const [kcal, setKcal] = useState("");
@@ -33,7 +31,6 @@ export function CustomFoodForm({ customFoods, onSave }: Props) {
     setP("");
     setF("");
     setC("");
-    setOpen(false);
   };
 
   const fields: Array<[string, string, (v: string) => void]> = [
@@ -56,60 +53,49 @@ export function CustomFoodForm({ customFoods, onSave }: Props) {
   );
 
   return (
-    <section className="border-y border-line py-4">
-      <button onClick={() => setOpen(!open)} className="w-full flex items-center justify-between cursor-pointer" aria-expanded={open}>
-        <span className="flex items-center gap-2.5 text-sm text-body font-medium">
-          <NotebookPen className="w-4 h-4 text-accent" strokeWidth={1.6} /> Своё блюдо — добавить в базу
-        </span>
-        <ChevronRight className={`w-4 h-4 text-dim transition-transform duration-200 ${open ? "rotate-90" : ""}`} />
-      </button>
+    <div>
+      <div className="flex gap-2 mb-4">
+        {tab("manual", "КБЖУ вручную")}
+        {tab("build", "Из продуктов")}
+      </div>
 
-      {open && (
-        <div className="mt-4">
-          <div className="flex gap-2 mb-4">
-            {tab("manual", "КБЖУ вручную")}
-            {tab("build", "Из продуктов")}
+      {mode === "manual" ? (
+        <>
+          <input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="Название, например «Плов мамин»"
+            className="w-full bg-surface rounded-full px-4 py-3 text-sm"
+            aria-label="Название блюда"
+          />
+          <div className="grid grid-cols-4 gap-3 mt-3">
+            {fields.map(([label, val, set]) => (
+              <label key={label} className="block border-b border-line focus-within:border-accent transition-colors">
+                <span className="text-xs text-dim">{label}</span>
+                <input
+                  type="number"
+                  inputMode="decimal"
+                  value={val}
+                  onChange={(e) => set(e.target.value)}
+                  placeholder="0"
+                  className="w-full min-w-0 bg-transparent disp text-lg font-medium outline-none py-1"
+                  aria-label={`${label} на 100 г`}
+                />
+              </label>
+            ))}
           </div>
-
-          {mode === "manual" ? (
-            <>
-              <input
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="Название, например «Плов мамин»"
-                className="w-full bg-surface rounded-full px-4 py-3 text-sm"
-                aria-label="Название блюда"
-              />
-              <div className="grid grid-cols-4 gap-3 mt-3">
-                {fields.map(([label, val, set]) => (
-                  <label key={label} className="block border-b border-line focus-within:border-accent transition-colors">
-                    <span className="text-xs text-dim">{label}</span>
-                    <input
-                      type="number"
-                      inputMode="decimal"
-                      value={val}
-                      onChange={(e) => set(e.target.value)}
-                      placeholder="0"
-                      className="w-full min-w-0 bg-transparent disp text-lg font-medium outline-none py-1"
-                      aria-label={`${label} на 100 г`}
-                    />
-                  </label>
-                ))}
-              </div>
-              <p className="text-xs text-dim mt-2">Значения на 100 г. Блюдо появится в обычном поиске.</p>
-              <button
-                onClick={saveManual}
-                disabled={!valid}
-                className="mt-3 w-full bg-accent hover:bg-accent-soft disabled:opacity-50 active:scale-[0.98] transition-all duration-150 text-accent-ink font-semibold rounded-full py-3 cursor-pointer"
-              >
-                Сохранить в базу
-              </button>
-            </>
-          ) : (
-            <DishBuilder embedded customFoods={customFoods} onSave={onSave} />
-          )}
-        </div>
+          <p className="text-xs text-dim mt-2">Значения на 100 г. Блюдо появится в обычном поиске.</p>
+          <button
+            onClick={saveManual}
+            disabled={!valid}
+            className="mt-3 w-full bg-accent hover:bg-accent-soft disabled:opacity-50 active:scale-[0.98] transition-all duration-150 text-accent-ink font-semibold rounded-full py-3 cursor-pointer"
+          >
+            Сохранить в базу
+          </button>
+        </>
+      ) : (
+        <DishBuilder embedded customFoods={customFoods} onSave={onSave} />
       )}
-    </section>
+    </div>
   );
 }

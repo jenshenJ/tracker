@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Camera, Loader2, ScanLine, Search, Sparkles, Trash2, X } from "lucide-react";
+import { Camera, ChefHat, ChevronRight, Loader2, NotebookPen, ScanLine, Search, Sparkles, Trash2, X } from "lucide-react";
 import type { CustomFood, DayLog, FoodEntry, FoodSearchResult, Meal, Profile, Totals } from "../../types";
 import { MEALS, defaultMeal } from "../../constants";
 import { AiError, askAi, cacheFoodSearch, cachedFoodSearch, parseJsonArray } from "../../lib/ai";
@@ -13,6 +13,7 @@ import { BarcodeScanner } from "../BarcodeScanner";
 import { PhotoFood } from "../PhotoFood";
 import { CustomFoodForm } from "../CustomFoodForm";
 import { RecentFoods } from "../RecentFoods";
+import { Sheet } from "../Sheet";
 
 interface Props {
   day: DayLog;
@@ -40,12 +41,16 @@ export function FoodTab({ day, saveDay, totals, profile }: Props) {
   const [customFoods, setCustomFoods] = useState<CustomFood[]>(() => storage.loadCustomFoods());
   const [showScanner, setShowScanner] = useState(false);
   const [showPhoto, setShowPhoto] = useState(false);
+  const [showCustom, setShowCustom] = useState(false);
+  const [showChef, setShowChef] = useState(false);
 
   const saveCustomFood = (food: CustomFood) => {
     const next = [food, ...customFoods];
     setCustomFoods(next);
     storage.saveCustomFoods(next);
     pick(food.name, food.kcal, food.p, food.f, food.c, food.portion ?? 100);
+    setShowCustom(false);
+    window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   /* единая точка записи в дневник: пишем день + автосохраняем еду в базу */
@@ -165,22 +170,6 @@ export function FoodTab({ day, saveDay, totals, profile }: Props) {
               className="w-full bg-surface rounded-full pl-11 pr-4 py-3 text-base"
             />
           </div>
-          <button
-            onClick={() => setShowPhoto(true)}
-            className="bg-surface hover:bg-raised-hover transition-all duration-150 rounded-full px-4 cursor-pointer flex items-center shrink-0"
-            aria-label="Распознать еду по фото"
-            title="Еда по фото"
-          >
-            <Camera className="w-5 h-5 text-accent" strokeWidth={1.8} />
-          </button>
-          <button
-            onClick={() => setShowScanner(true)}
-            className="bg-surface hover:bg-raised-hover transition-all duration-150 rounded-full px-4 cursor-pointer flex items-center shrink-0"
-            aria-label="Сканировать штрихкод"
-            title="Сканировать штрихкод"
-          >
-            <ScanLine className="w-5 h-5 text-accent" strokeWidth={1.8} />
-          </button>
           <button
             onClick={aiSearch}
             disabled={aiLoading}
@@ -304,14 +293,47 @@ export function FoodTab({ day, saveDay, totals, profile }: Props) {
         )}
       </section>
 
+      {/* добавить иначе: фото, штрихкод, своё блюдо */}
+      <section>
+        <div className="eyebrow">Ещё способы</div>
+        <div className="grid grid-cols-3 gap-2 mt-4">
+          <button
+            onClick={() => setShowPhoto(true)}
+            className="bg-raised hover:bg-raised-hover transition-colors duration-150 rounded-2xl py-3.5 flex flex-col items-center gap-1.5 cursor-pointer"
+          >
+            <Camera className="w-5 h-5 text-accent" strokeWidth={1.7} />
+            <span className="text-xs text-body">Фото</span>
+          </button>
+          <button
+            onClick={() => setShowScanner(true)}
+            className="bg-raised hover:bg-raised-hover transition-colors duration-150 rounded-2xl py-3.5 flex flex-col items-center gap-1.5 cursor-pointer"
+          >
+            <ScanLine className="w-5 h-5 text-accent" strokeWidth={1.7} />
+            <span className="text-xs text-body">Штрихкод</span>
+          </button>
+          <button
+            onClick={() => setShowCustom(true)}
+            className="bg-raised hover:bg-raised-hover transition-colors duration-150 rounded-2xl py-3.5 flex flex-col items-center gap-1.5 cursor-pointer"
+          >
+            <NotebookPen className="w-5 h-5 text-accent" strokeWidth={1.7} />
+            <span className="text-xs text-body">Своё блюдо</span>
+          </button>
+        </div>
+      </section>
+
       {/* недавнее и частое — быстрый повтор */}
       <RecentFoods days={days} onPick={pickQuick} />
 
-      {/* своё блюдо: КБЖУ вручную или сборка из продуктов */}
-      <CustomFoodForm customFoods={customFoods} onSave={saveCustomFood} />
-
-      {/* AI-повар */}
-      <AiChef day={day} logEntries={logEntries} totals={totals} profile={profile} />
+      {/* AI-повар — открывается шторкой */}
+      <button
+        onClick={() => setShowChef(true)}
+        className="w-full flex items-center justify-between border-y border-line py-4 cursor-pointer"
+      >
+        <span className="flex items-center gap-2.5 text-sm text-body font-medium">
+          <ChefHat className="w-4 h-4 text-accent" strokeWidth={1.6} /> Что приготовить из остатка?
+        </span>
+        <ChevronRight className="w-4 h-4 text-dim" />
+      </button>
 
       {/* дневник */}
       <section>
@@ -372,6 +394,26 @@ export function FoodTab({ day, saveDay, totals, profile }: Props) {
           }}
           onClose={() => setShowScanner(false)}
         />
+      )}
+
+      {showCustom && (
+        <Sheet
+          title="Своё блюдо в базу"
+          icon={<NotebookPen className="w-4 h-4 text-accent" strokeWidth={1.6} />}
+          onClose={() => setShowCustom(false)}
+        >
+          <CustomFoodForm customFoods={customFoods} onSave={saveCustomFood} />
+        </Sheet>
+      )}
+
+      {showChef && (
+        <Sheet
+          title="Что приготовить из остатка?"
+          icon={<ChefHat className="w-4 h-4 text-accent" strokeWidth={1.6} />}
+          onClose={() => setShowChef(false)}
+        >
+          <AiChef day={day} logEntries={logEntries} totals={totals} profile={profile} />
+        </Sheet>
       )}
     </div>
   );
